@@ -9,16 +9,16 @@ import org.springframework.stereotype.Service;
 @Service
 public final class UserService {
 
-    private final User defaultUser;
+    private final UserRepository userRepository;
 
     public UserService(UserRepository userRepository) {
-        log.debug("Loading default user from the database");
-        defaultUser = userRepository.findAll().stream()
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("No default user found — has the application initialised correctly?"));
+        this.userRepository = userRepository;
     }
 
     public User getDefaultUser() {
-        return defaultUser;
+        log.debug("Loading default user from the database");
+        return userRepository.findAll().stream()
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No default user found — has the application initialised correctly?"));
     }
 }
