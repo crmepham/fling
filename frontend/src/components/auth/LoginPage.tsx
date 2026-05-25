@@ -33,6 +33,11 @@ export function LoginPage({ onLogin }: Props) {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="mb-8 text-center">
+          <div className="flex justify-center mb-2">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40" fill="#a855f7">
+              <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>
+            </svg>
+          </div>
           <h1 className="text-2xl font-bold tracking-tight text-text">Fling</h1>
           <p className="mt-1 text-xs text-subtle">API client</p>
         </div>
