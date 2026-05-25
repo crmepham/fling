@@ -1,0 +1,10 @@
+package com.fling.exception;
+
+public enum ErrorCode {
+    RESOURCE_NOT_FOUND,
+    CONFLICT,
+    VALIDATION_ERROR,
+    INTERNAL_ERROR,
+    PROXY_UPSTREAM_UNREACHABLE,
+    PROXY_UPSTREAM_TIMEOUT
+}

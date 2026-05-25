@@ -1,0 +1,12 @@
+<FindBugsFilter>
+    <!--
+        EI_EXPOSE_REP / EI_EXPOSE_REP2: SpotBugs flags every getter/setter that passes a mutable
+        object (List, Map, entity reference) without defensive copying. In a Spring/JPA application
+        this is expected behaviour — JPA entities require mutable references, DTOs are transient
+        data carriers, and Spring manages service/controller lifecycles. Defensive copying would
+        break JPA dirty-checking and serve no practical purpose here.
+    -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+</FindBugsFilter>

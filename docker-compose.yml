@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: fling
+      POSTGRES_USER: fling
+      POSTGRES_PASSWORD: fling
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fling"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/fling
+      SPRING_DATASOURCE_USERNAME: fling
+      SPRING_DATASOURCE_PASSWORD: fling
+      FLING_USERNAME: ${FLING_USERNAME:-admin}
+      FLING_PASSWORD: ${FLING_PASSWORD:-fling}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
