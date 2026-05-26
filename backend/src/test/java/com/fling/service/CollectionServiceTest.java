@@ -100,4 +100,39 @@ class CollectionServiceTest {
 
         verify(collectionRepository).delete(collection);
     }
+
+    @Test
+    void togglePin_pinnsUnpinnedCollection() {
+        var id = UUID.randomUUID();
+        collection.setPinned(false);
+        when(collectionRepository.findByIdAndUser(id, user)).thenReturn(Optional.of(collection));
+        when(collectionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = collectionService.togglePin(user, id);
+
+        assertThat(result.pinned()).isTrue();
+        verify(collectionRepository).save(collection);
+    }
+
+    @Test
+    void togglePin_unpinsPinnedCollection() {
+        var id = UUID.randomUUID();
+        collection.setPinned(true);
+        when(collectionRepository.findByIdAndUser(id, user)).thenReturn(Optional.of(collection));
+        when(collectionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = collectionService.togglePin(user, id);
+
+        assertThat(result.pinned()).isFalse();
+        verify(collectionRepository).save(collection);
+    }
+
+    @Test
+    void togglePin_throwsNotFound_whenCollectionDoesNotExist() {
+        var id = UUID.randomUUID();
+        when(collectionRepository.findByIdAndUser(id, user)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> collectionService.togglePin(user, id))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
 }

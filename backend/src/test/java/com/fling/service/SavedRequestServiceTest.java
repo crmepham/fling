@@ -121,7 +121,7 @@ class SavedRequestServiceTest {
         when(collectionRepository.findByIdAndUser(collectionId, user)).thenReturn(Optional.empty());
 
         var req = new CreateSavedRequestRequest(collectionId, "My Request", "GET",
-                "https://example.com", List.of(), List.of(), null, BodyType.NONE);
+                "https://example.com", List.of(), List.of(), null, BodyType.NONE, null);
 
         assertThatThrownBy(() -> savedRequestService.create(user, req))
                 .isInstanceOf(ResourceNotFoundException.class);

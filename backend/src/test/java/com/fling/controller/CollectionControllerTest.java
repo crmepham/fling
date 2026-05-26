@@ -12,6 +12,7 @@ import com.fling.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -32,6 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(CollectionController.class)
 @Import(GlobalExceptionHandler.class)
+@AutoConfigureMockMvc(addFilters = false)
 class CollectionControllerTest {
 
     @Autowired
@@ -56,7 +58,7 @@ class CollectionControllerTest {
 
         sampleResponse = new CollectionResponse(
                 UUID.randomUUID(), "My Collection", "A description",
-                OffsetDateTime.now(), OffsetDateTime.now()
+                null, false, OffsetDateTime.now(), OffsetDateTime.now()
         );
     }
 
@@ -120,6 +122,31 @@ class CollectionControllerTest {
                 .thenThrow(ResourceNotFoundException.of("Collection", id));
 
         mockMvc.perform(get("/api/v1/collections/{id}", id))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    void PATCH_pin_returns200WithPinnedCollection() throws Exception {
+        var id = UUID.randomUUID();
+        var pinnedResponse = new CollectionResponse(
+                id, "My Collection", "A description",
+                null, true, OffsetDateTime.now(), OffsetDateTime.now()
+        );
+        when(collectionService.togglePin(eq(user), eq(id))).thenReturn(pinnedResponse);
+
+        mockMvc.perform(patch("/api/v1/collections/{id}/pin", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pinned").value(true));
+    }
+
+    @Test
+    void PATCH_pin_returns404_whenCollectionNotFound() throws Exception {
+        var id = UUID.randomUUID();
+        when(collectionService.togglePin(eq(user), eq(id)))
+                .thenThrow(ResourceNotFoundException.of("Collection", id));
+
+        mockMvc.perform(patch("/api/v1/collections/{id}/pin", id))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("RESOURCE_NOT_FOUND"));
     }
