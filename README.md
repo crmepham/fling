@@ -120,13 +120,32 @@ Then open `http://localhost` in your browser and log in with:
 - **Username:** `admin`
 - **Password:** `fling`
 
-To use a different username or password, set the `FLING_USERNAME` and `FLING_PASSWORD` environment variables before starting:
+Your data is persisted in a Docker volume — it will survive container restarts.
+
+---
+
+## Configuration
+
+Fling is configured via environment variables. Copy the provided example file to get started:
 
 ```bash
-FLING_USERNAME=myuser FLING_PASSWORD=mysecret docker compose up -d
+cp .env.example .env
 ```
 
-Your data is persisted in a Docker volume — it will survive container restarts.
+Then edit `.env` to suit your setup. Docker Compose will pick it up automatically.
+
+| Variable | Description | Default |
+|---|---|---|
+| `FLING_USERNAME` | Login username | `admin` |
+| `FLING_PASSWORD` | Login password | `fling` |
+| `BACKEND_PORT` | Port the backend listens on | `8080` |
+| `FRONTEND_PORT` | Port the frontend is exposed on | `80` |
+
+For example, to run the frontend on port 8081:
+
+```
+FRONTEND_PORT=8081
+```
 
 ---
 
