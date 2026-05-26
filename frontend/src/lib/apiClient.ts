@@ -68,6 +68,9 @@ export const api = {
     request<Collection>(`/collections/${id}/auth`, { method: 'PATCH', body: JSON.stringify({ auth }) }),
 
   // ── Requests ──────────────────────────────────────────────────────────────
+  getRequest: (id: string) =>
+    request<SavedRequest>(`/requests/${id}`),
+
   createRequest: (body: {
     collectionId: string
     name: string
@@ -128,6 +131,9 @@ export const api = {
 
   getHistory: (id: string) =>
     request<HistoryDetail>(`/history/${id}`),
+
+  getLatestHistory: (requestId: string) =>
+    request<HistoryDetail | null>(`/history/latest?requestId=${requestId}`),
 
   clearHistory: () =>
     request<void>('/history', { method: 'DELETE' }),

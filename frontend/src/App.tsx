@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { TopBar } from './components/layout/TopBar'
@@ -58,6 +58,8 @@ function loadDraft(id: string) {
 function clearDraft(id: string) {
   localStorage.removeItem(draftKey(id))
 }
+
+const LAST_REQUEST_KEY = 'fling:last-request'
 
 // ─── New-request draft helpers ────────────────────────────────────────────────
 
@@ -130,6 +132,9 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
   // ── New-request drafts ─────────────────────────────────────────────────────
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null)
   const [newDrafts, setNewDrafts] = useState<NewDraft[]>(loadNewDrafts)
+
+  // ── Restore last active request on first load ──────────────────────────────
+  const hasRestoredRef = useRef(false)
 
   // ── Response state ─────────────────────────────────────────────────────────
   const [response, setResponse] = useState<ExecuteResponse | null>(null)
@@ -386,6 +391,25 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
     })
     setResponseTab('body')
   }
+
+  // ── Persist last active request so it can be restored on next open ───────
+  useEffect(() => {
+    if (activeRequest) {
+      localStorage.setItem(LAST_REQUEST_KEY, activeRequest.id)
+    }
+  }, [activeRequest?.id])
+
+  // ── Restore last active request once on startup ───────────────────────────
+  useEffect(() => {
+    if (hasRestoredRef.current) return
+    hasRestoredRef.current = true
+    const lastId = localStorage.getItem(LAST_REQUEST_KEY)
+    if (!lastId) return
+    api.getRequest(lastId).then(handleRequestSelect).catch(() => {
+      // Request no longer exists — remove stale key
+      localStorage.removeItem(LAST_REQUEST_KEY)
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Shared execute logic ───────────────────────────────────────────────────
   async function executeRequest(payload: object) {
