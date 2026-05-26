@@ -60,12 +60,11 @@ export function SaveRequestDialog({ method, url, params, headers, body, bodyType
   }, [open, url, activeRequest, method, params, headers, body, bodyType, auth, collections])
 
   const isPending = isSaving || isUpdating
-  const isUpdate = activeRequest !== null &&
-    name.trim().toLowerCase() === activeRequest.name.toLowerCase()
+  const isUpdate = activeRequest !== null
 
-  const isDuplicate = !isUpdate &&
+  const isDuplicate =
     name.trim() !== '' &&
-    existingRequests.some((r) => r.name.toLowerCase() === name.trim().toLowerCase())
+    existingRequests.some((r) => r.name.toLowerCase() === name.trim().toLowerCase() && r.id !== activeRequest?.id)
 
   function handleOpenChange(next: boolean) {
     if (next) {
