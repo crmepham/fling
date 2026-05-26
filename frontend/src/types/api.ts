@@ -59,6 +59,19 @@ export interface SavedRequest {
   auth?: AuthConfig | null
   createdAt: string
   updatedAt: string
+  latestHistory?: {
+    id: string
+    method: string
+    url: string
+    queryParams: Record<string, string>
+    headers: Record<string, string>
+    body?: string | null
+    responseStatus?: number | null
+    responseHeaders: Record<string, string>
+    responseBody?: string | null
+    durationMs?: number | null
+    sentAt: string
+  } | null
 }
 
 export interface Collection {

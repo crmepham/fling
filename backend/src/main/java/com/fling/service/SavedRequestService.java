@@ -6,10 +6,12 @@ import com.fling.dto.request.MoveRequestBody;
 import com.fling.dto.request.SavedRequestResponse;
 import com.fling.entity.KeyValueEnabled;
 import com.fling.entity.RequestCollection;
+import com.fling.entity.RequestHistory;
 import com.fling.entity.SavedRequest;
 import com.fling.entity.User;
 import com.fling.exception.ResourceNotFoundException;
 import com.fling.repository.RequestCollectionRepository;
+import com.fling.repository.RequestHistoryRepository;
 import com.fling.repository.SavedRequestRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -18,7 +20,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -26,13 +30,27 @@ public class SavedRequestService {
 
     private final SavedRequestRepository requestRepository;
     private final RequestCollectionRepository collectionRepository;
+    private final RequestHistoryRepository historyRepository;
 
     @Transactional(readOnly = true)
     public PageResponse<SavedRequestResponse> listByCollection(User user, UUID collectionId, int page, int pageSize) {
         var collection = collectionRepository.findByIdAndUser(collectionId, user)
                 .orElseThrow(() -> ResourceNotFoundException.of("Collection", collectionId));
         var pageable = PageRequest.of(page - 1, pageSize, Sort.by("sortOrder").ascending());
-        return PageResponse.of(requestRepository.findAllByCollection(collection, pageable), SavedRequestResponse::of);
+        var requestPage = requestRepository.findAllByCollection(collection, pageable);
+
+        var requestIds = requestPage.getContent().stream().map(SavedRequest::getId).toList();
+        var latestHistoryMap = requestIds.isEmpty()
+                ? Map.<UUID, RequestHistory>of()
+                : historyRepository.findLatestByUserAndRequestIds(user, requestIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                h -> h.getRequest().getId(),
+                                h -> h,
+                                (a, b) -> a.getSentAt().isAfter(b.getSentAt()) ? a : b
+                        ));
+
+        return PageResponse.of(requestPage, r -> SavedRequestResponse.of(r, latestHistoryMap.get(r.getId())));
     }
 
     @Transactional

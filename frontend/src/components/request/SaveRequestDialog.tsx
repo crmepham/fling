@@ -13,12 +13,12 @@ interface Props {
   body: string
   bodyType: 'NONE' | 'JSON' | 'FORM' | 'TEXT'
   auth: AuthConfig
-  savedAuth: AuthConfig
   activeRequest: SavedRequest | null
+  isDirty: boolean
   onSaved: (saved: SavedRequest) => void
 }
 
-export function SaveRequestDialog({ method, url, params, headers, body, bodyType, auth, savedAuth, activeRequest, onSaved }: Props) {
+export function SaveRequestDialog({ method, url, params, headers, body, bodyType, auth, activeRequest, isDirty, onSaved }: Props) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [collectionId, setCollectionId] = useState('')
@@ -33,34 +33,35 @@ export function SaveRequestDialog({ method, url, params, headers, body, bodyType
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 's' && (e.metaKey || e.ctrlKey) && !open) {
         e.preventDefault()
-        if (url.trim()) handleOpenChange(true)
+        if (!url.trim()) return
+        if (activeRequest !== null) {
+          updateRequest(
+            {
+              id: activeRequest.id,
+              collectionId: activeRequest.collectionId ?? collections[0]?.id ?? '',
+              name: activeRequest.name,
+              method,
+              url: url.split('?')[0],
+              queryParams: params.filter((p) => p.key.trim() !== '').map(({ key, value, enabled }) => ({ key, value, enabled })),
+              headers: headers.filter((h) => h.key.trim() !== '').map(({ key, value, enabled }) => ({ key, value, enabled })),
+              body: body || undefined,
+              bodyType,
+              auth: auth.type === 'none' && !auth.username && !auth.password ? null : auth,
+            },
+            { onSuccess: (saved) => onSaved(saved) },
+          )
+        } else {
+          handleOpenChange(true)
+        }
       }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [open, url])
+  }, [open, url, activeRequest, method, params, headers, body, bodyType, auth, collections])
 
   const isPending = isSaving || isUpdating
   const isUpdate = activeRequest !== null &&
     name.trim().toLowerCase() === activeRequest.name.toLowerCase()
-
-  // Detect unsaved changes when a saved request is active
-  const isDirty = activeRequest !== null && (() => {
-    if (method !== activeRequest.method) return true
-    if (url.split('?')[0] !== activeRequest.url) return true
-    if (body !== (activeRequest.body ?? '')) return true
-    if (bodyType !== activeRequest.bodyType) return true
-    const activeParams = activeRequest.queryParams.filter((p) => p.key.trim() !== '')
-    const currentParams = params.filter((p) => p.key.trim() !== '')
-    if (activeParams.length !== currentParams.length) return true
-    if (activeParams.some((p, i) => p.key !== currentParams[i]?.key || p.value !== currentParams[i]?.value || p.enabled !== currentParams[i]?.enabled)) return true
-    const activeHeaders = activeRequest.headers.filter((h) => h.key.trim() !== '')
-    const currentHeaders = headers.filter((h) => h.key.trim() !== '')
-    if (activeHeaders.length !== currentHeaders.length) return true
-    if (activeHeaders.some((h, i) => h.key !== currentHeaders[i]?.key || h.value !== currentHeaders[i]?.value || h.enabled !== currentHeaders[i]?.enabled)) return true
-    if (auth.type !== savedAuth.type || auth.enabled !== savedAuth.enabled || auth.username !== savedAuth.username || auth.password !== savedAuth.password) return true
-    return false
-  })()
 
   const isDuplicate = !isUpdate &&
     name.trim() !== '' &&

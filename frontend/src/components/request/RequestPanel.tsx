@@ -32,6 +32,7 @@ interface Props {
   collectionAuth?: AuthConfig | null
   activeTab: RequestTab
   activeRequest: SavedRequest | null
+  isDirty: boolean
   envVariables: Record<string, string>
   onMethodChange: (m: HttpMethod) => void
   onUrlChange: (url: string) => void
@@ -69,7 +70,7 @@ function isValidUrl(url: string, vars: Record<string, string> = {}): boolean {
 }
 
 export function RequestPanel({
-  method, url, params, headers, body, bodyType, auth, savedAuth, collectionAuth, activeTab, activeRequest, envVariables,
+  method, url, params, headers, body, bodyType, auth, collectionAuth, activeTab, activeRequest, isDirty, envVariables,
   onMethodChange, onUrlChange, onParamsChange, onHeadersChange,
   onBodyChange, onBodyTypeChange, onAuthChange, onTabChange, onSend, onSaved,
 }: Props) {
@@ -82,11 +83,13 @@ export function RequestPanel({
   // Keep the colored overlay scrolled in sync with the input
   const urlInputRef = useRef<HTMLInputElement>(null)
   const urlOverlayRef = useRef<HTMLDivElement>(null)
-  const [cursorPos, setCursorPos] = useState<number | null>(null)
+  const [selStart, setSelStart] = useState<number | null>(null)
+  const [selEnd, setSelEnd] = useState<number | null>(null)
   const [inputFocused, setInputFocused] = useState(false)
 
-  function updateCursor(el: HTMLInputElement) {
-    setCursorPos(el.selectionStart)
+  function updateSelection(el: HTMLInputElement) {
+    setSelStart(el.selectionStart)
+    setSelEnd(el.selectionEnd)
   }
 
   function renderSegments(text: string, keyPrefix: string) {
@@ -157,12 +160,13 @@ export function RequestPanel({
           <input
             ref={urlInputRef}
             value={url}
-            onChange={(e) => { onUrlChange(e.target.value); updateCursor(e.target) }}
-            onFocus={(e) => { setInputFocused(true); updateCursor(e.target) }}
-            onBlur={() => { setInputFocused(false); setCursorPos(null) }}
-            onSelect={(e) => updateCursor(e.currentTarget)}
-            onKeyUp={(e) => updateCursor(e.currentTarget)}
-            onClick={(e) => updateCursor(e.currentTarget)}
+            onChange={(e) => { onUrlChange(e.target.value); updateSelection(e.target) }}
+            onFocus={(e) => { setInputFocused(true); updateSelection(e.target) }}
+            onBlur={() => { setInputFocused(false); setSelStart(null); setSelEnd(null) }}
+            onSelect={(e) => updateSelection(e.currentTarget)}
+            onKeyUp={(e) => updateSelection(e.currentTarget)}
+            onClick={(e) => updateSelection(e.currentTarget)}
+            onDoubleClick={(e) => { e.currentTarget.select(); updateSelection(e.currentTarget) }}
             placeholder="https://api.example.com/endpoint"
             spellCheck={false}
             style={{ caretColor: 'transparent' }}
@@ -188,18 +192,32 @@ export function RequestPanel({
               showUrlError ? 'border-red-500' : 'border-border',
             )}
           >
-            {url === '' ? null : (
-              <>
-                {renderSegments(url.slice(0, cursorPos ?? url.length), 'before')}
-                {inputFocused && cursorPos !== null && (
-                  <span
-                    className="inline-block w-px shrink-0 self-center"
-                    style={{ height: '0.875rem', backgroundColor: 'var(--color-text)', animation: 'blink 1s step-end infinite' }}
-                  />
-                )}
-                {renderSegments(url.slice(cursorPos ?? url.length), 'after')}
-              </>
-            )}
+            {url === '' ? null : (() => {
+              const start = selStart ?? url.length
+              const end = selEnd ?? url.length
+              const hasSelection = inputFocused && start !== end
+              if (hasSelection) {
+                return (
+                  <>
+                    {renderSegments(url.slice(0, start), 'before')}
+                    <span className="bg-accent/50 rounded-sm">{renderSegments(url.slice(start, end), 'sel')}</span>
+                    {renderSegments(url.slice(end), 'after')}
+                  </>
+                )
+              }
+              return (
+                <>
+                  {renderSegments(url.slice(0, end), 'before')}
+                  {inputFocused && selEnd !== null && (
+                    <span
+                      className="inline-block w-px shrink-0 self-center"
+                      style={{ height: '0.875rem', backgroundColor: 'var(--color-text)', animation: 'blink 1s step-end infinite' }}
+                    />
+                  )}
+                  {renderSegments(url.slice(end), 'after')}
+                </>
+              )
+            })()}
           </div>
         </div>
 
@@ -227,8 +245,8 @@ export function RequestPanel({
           body={body}
           bodyType={bodyType}
           auth={auth}
-          savedAuth={savedAuth}
           activeRequest={activeRequest}
+          isDirty={isDirty}
           onSaved={onSaved}
         />
       </div>

@@ -4,10 +4,12 @@ import com.fling.dto.request.CreateSavedRequestRequest;
 import com.fling.dto.request.MoveRequestBody;
 import com.fling.entity.BodyType;
 import com.fling.entity.RequestCollection;
+import com.fling.entity.RequestHistory;
 import com.fling.entity.SavedRequest;
 import com.fling.entity.User;
 import com.fling.exception.ResourceNotFoundException;
 import com.fling.repository.RequestCollectionRepository;
+import com.fling.repository.RequestHistoryRepository;
 import com.fling.repository.SavedRequestRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,7 +17,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,6 +28,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,6 +39,9 @@ class SavedRequestServiceTest {
 
     @Mock
     private RequestCollectionRepository collectionRepository;
+
+    @Mock
+    private RequestHistoryRepository historyRepository;
 
     @InjectMocks
     private SavedRequestService savedRequestService;
@@ -111,5 +120,49 @@ class SavedRequestServiceTest {
         savedRequestService.delete(user, id);
 
         verify(requestRepository).delete(savedRequest);
+    }
+
+    @Test
+    void listByCollection_returnsLatestHistoryAsNull_whenNoHistoryExists() {
+        var collectionId = UUID.randomUUID();
+        when(collectionRepository.findByIdAndUser(collectionId, user)).thenReturn(Optional.of(collection));
+        when(requestRepository.findAllByCollection(eq(collection), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(savedRequest)));
+        when(historyRepository.findLatestByUserAndRequestIds(eq(user), any())).thenReturn(List.of());
+
+        var result = savedRequestService.listByCollection(user, collectionId, 1, 20);
+
+        assertThat(result.data()).hasSize(1);
+        assertThat(result.data().get(0).latestHistory()).isNull();
+    }
+
+    @Test
+    void listByCollection_embedsLatestHistory_whenHistoryExists() {
+        var collectionId = UUID.randomUUID();
+        var requestId = UUID.randomUUID();
+        savedRequest.setId(requestId);
+
+        var history = new RequestHistory();
+        history.setId(UUID.randomUUID());
+        history.setMethod("GET");
+        history.setUrl("https://api.example.com/users");
+        history.setResponseStatus(200);
+        history.setDurationMs(42);
+        history.setSentAt(OffsetDateTime.now());
+        history.setRequest(savedRequest);
+        history.setUser(user);
+
+        when(collectionRepository.findByIdAndUser(collectionId, user)).thenReturn(Optional.of(collection));
+        when(requestRepository.findAllByCollection(eq(collection), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(savedRequest)));
+        when(historyRepository.findLatestByUserAndRequestIds(eq(user), any())).thenReturn(List.of(history));
+
+        var result = savedRequestService.listByCollection(user, collectionId, 1, 20);
+
+        assertThat(result.data()).hasSize(1);
+        var latestHistory = result.data().get(0).latestHistory();
+        assertThat(latestHistory).isNotNull();
+        assertThat(latestHistory.responseStatus()).isEqualTo(200);
+        assertThat(latestHistory.durationMs()).isEqualTo(42);
     }
 }

@@ -46,9 +46,9 @@ function VariableEditor({ envId }: VariableEditorProps) {
   // Sync rows when detail loads / changes
   useEffect(() => {
     if (!detail) return
-    setRows(
-      detail.variables.map((v) => ({ ...v, dirty: false, deleted: false }))
-    )
+    const saved = detail.variables.map((v) => ({ ...v, dirty: false, deleted: false }))
+    const empty = Array.from({ length: Math.max(0, 5 - saved.length) }, makeNewRow)
+    setRows([...saved, ...empty])
     setVisibleSecrets(new Set())
   }, [detail])
 
@@ -109,10 +109,6 @@ function VariableEditor({ envId }: VariableEditorProps) {
     <div className="flex flex-col flex-1 min-h-0">
       {/* Variable rows */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        {visibleRows.length === 0 && (
-          <p className="px-4 py-6 text-xs text-subtle text-center">No variables yet. Add one below.</p>
-        )}
-
         {/* Header row */}
         {visibleRows.length > 0 && (
           <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 px-4 pt-3 pb-1">

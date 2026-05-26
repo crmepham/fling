@@ -9,7 +9,10 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
+import org.springframework.data.repository.query.Param;
+
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,6 +20,8 @@ public interface RequestHistoryRepository extends JpaRepository<RequestHistory, 
         JpaSpecificationExecutor<RequestHistory> {
 
     Optional<RequestHistory> findByIdAndUser(UUID id, User user);
+
+    Optional<RequestHistory> findFirstByUserAndRequestIdOrderBySentAtDesc(User user, UUID requestId);
 
     @Modifying
     @Query("DELETE FROM RequestHistory h WHERE h.user = :user")
@@ -33,4 +38,7 @@ public interface RequestHistoryRepository extends JpaRepository<RequestHistory, 
     @Modifying
     @Query("DELETE FROM RequestHistory h WHERE h.user = :user AND h.request.id = :requestId AND h.sentAt < :before")
     void deleteAllByUserAndRequestIdAndSentAtBefore(User user, UUID requestId, OffsetDateTime before);
+
+    @Query("SELECT h FROM RequestHistory h WHERE h.user = :user AND h.request.id IN :requestIds AND h.sentAt = (SELECT MAX(h2.sentAt) FROM RequestHistory h2 WHERE h2.request = h.request)")
+    List<RequestHistory> findLatestByUserAndRequestIds(@Param("user") User user, @Param("requestIds") List<UUID> requestIds);
 }

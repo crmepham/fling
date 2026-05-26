@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -27,6 +28,12 @@ public class HistoryService {
         // TODO: add filtering (method, status, statusRange, search, requestId)
         var result = historyRepository.findAll(pageable);
         return PageResponse.of(result, HistorySummaryResponse::of);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<HistoryDetailResponse> getLatestForRequest(User user, UUID requestId) {
+        return historyRepository.findFirstByUserAndRequestIdOrderBySentAtDesc(user, requestId)
+                .map(HistoryDetailResponse::of);
     }
 
     @Transactional(readOnly = true)

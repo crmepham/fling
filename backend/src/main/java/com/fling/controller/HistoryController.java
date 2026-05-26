@@ -8,6 +8,7 @@ import com.fling.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
@@ -26,6 +27,13 @@ public class HistoryController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "50") int pageSize) {
         return historyService.list(userService.getDefaultUser(), page, pageSize);
+    }
+
+    @GetMapping("/latest")
+    public ResponseEntity<HistoryDetailResponse> getLatest(@RequestParam UUID requestId) {
+        return historyService.getLatestForRequest(userService.getDefaultUser(), requestId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.noContent().build());
     }
 
     @GetMapping("/{id}")
