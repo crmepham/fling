@@ -1,10 +1,10 @@
 server {
-    listen 80;
+    listen ${FRONTEND_PORT};
     root /usr/share/nginx/html;
     index index.html;
 
     location /api {
-        proxy_pass http://backend:8081;
+        proxy_pass http://backend:${BACKEND_PORT};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_read_timeout 60s;
