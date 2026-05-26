@@ -55,6 +55,11 @@ public class CollectionController {
         return collectionService.updateAuth(userService.getDefaultUser(), id, req);
     }
 
+    @PatchMapping("/{id}/pin")
+    public CollectionResponse togglePin(@PathVariable UUID id) {
+        return collectionService.togglePin(userService.getDefaultUser(), id);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable UUID id) {

@@ -12,14 +12,15 @@ public record CollectionResponse(
         String name,
         String description,
         AuthConfig auth,
+        boolean pinned,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
 ) {
     public static CollectionResponse of(RequestCollection c) {
-        return new CollectionResponse(c.getId(), c.getName(), c.getDescription(), c.getAuth(), c.getCreatedAt(), c.getUpdatedAt());
+        return new CollectionResponse(c.getId(), c.getName(), c.getDescription(), c.getAuth(), c.isPinned(), c.getCreatedAt(), c.getUpdatedAt());
     }
 
     public static CollectionResponse of(CollectionRow row) {
-        return new CollectionResponse(row.getId(), row.getName(), row.getDescription(), null, row.getCreatedAt(), row.getUpdatedAt());
+        return new CollectionResponse(row.getId(), row.getName(), row.getDescription(), null, false, row.getCreatedAt(), row.getUpdatedAt());
     }
 }

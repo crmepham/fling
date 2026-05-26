@@ -67,6 +67,9 @@ export const api = {
   updateCollectionAuth: (id: string, auth: AuthConfig | null) =>
     request<Collection>(`/collections/${id}/auth`, { method: 'PATCH', body: JSON.stringify({ auth }) }),
 
+  pinCollection: (id: string) =>
+    request<Collection>(`/collections/${id}/pin`, { method: 'PATCH' }),
+
   // ── Requests ──────────────────────────────────────────────────────────────
   getRequest: (id: string) =>
     request<SavedRequest>(`/requests/${id}`),

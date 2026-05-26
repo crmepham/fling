@@ -104,3 +104,11 @@ export function useUpdateCollectionAuth() {
     onSuccess: () => queryClient.refetchQueries({ queryKey: ['collections'] }),
   })
 }
+
+export function usePinCollection() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.pinCollection(id),
+    onSuccess: () => queryClient.refetchQueries({ queryKey: ['collections'] }),
+  })
+}

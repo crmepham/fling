@@ -33,6 +33,9 @@ public class RequestCollection {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder = 0;
 
+    @Column(nullable = false)
+    private boolean pinned = false;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private AuthConfig auth;

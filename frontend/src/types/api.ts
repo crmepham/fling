@@ -80,6 +80,7 @@ export interface Collection {
   name: string
   description?: string
   auth?: AuthConfig | null
+  pinned: boolean
   createdAt: string
   updatedAt: string
 }

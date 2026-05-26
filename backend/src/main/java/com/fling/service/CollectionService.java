@@ -26,7 +26,8 @@ public class CollectionService {
 
     @Transactional(readOnly = true)
     public PageResponse<CollectionResponse> list(User user, int page, int pageSize) {
-        var pageable = PageRequest.of(page - 1, pageSize, Sort.by("sortOrder").ascending());
+        var pageable = PageRequest.of(page - 1, pageSize,
+                Sort.by(Sort.Order.desc("pinned"), Sort.Order.asc("sortOrder")));
         var pageResult = collectionRepository.findAllByUser(user, pageable);
         return PageResponse.of(pageResult, CollectionResponse::of);
     }
@@ -67,6 +68,13 @@ public class CollectionService {
             throw new ConflictException("Cannot delete the last remaining collection");
         }
         collectionRepository.delete(collection);
+    }
+
+    @Transactional
+    public CollectionResponse togglePin(User user, UUID id) {
+        var collection = findOrThrow(user, id);
+        collection.setPinned(!collection.isPinned());
+        return CollectionResponse.of(collectionRepository.save(collection));
     }
 
     @Transactional

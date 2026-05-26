@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Search, ChevronRight, FolderOpen, Folder, FileCode2, Plus, X, Loader2, Trash2, Play, Copy, GripVertical, Settings2 } from 'lucide-react'
+import { Search, ChevronRight, FolderOpen, Folder, FileCode2, Plus, X, Loader2, Trash2, Play, Copy, GripVertical, Settings2, Pin, PinOff } from 'lucide-react'
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -16,7 +16,7 @@ import { useToast } from '../../lib/toast'
 import { HistoryPanel } from './HistoryPanel'
 import {
   useCollections, useCreateCollection, useDeleteCollection, useDeleteRequest,
-  useDuplicateRequest, useMoveRequest, useRequests, useReorderCollections, useReorderRequests,
+  useDuplicateRequest, useMoveRequest, usePinCollection, useRequests, useReorderCollections, useReorderRequests,
 } from '../../hooks/useCollections'
 import { api } from '../../lib/apiClient'
 import type { Collection, PageResponse, SavedRequest } from '../../types/api'
@@ -271,6 +271,7 @@ function CollectionItem({
   envVariables,
   onRequestSelect,
   onRequestSend,
+  onPin,
 }: {
   collection: Collection
   isLast: boolean
@@ -281,6 +282,7 @@ function CollectionItem({
   envVariables: Record<string, string>
   onRequestSelect: (req: SavedRequest) => void
   onRequestSend: (req: SavedRequest) => void
+  onPin: (id: string) => void
 }) {
   const q = search.toLowerCase()
   const toast = useToast()
@@ -350,6 +352,20 @@ function CollectionItem({
             <GripVertical size={12} />
           </button>
         )}
+
+        <button
+          onClick={() => onPin(collection.id)}
+          title={collection.pinned ? 'Unpin collection' : 'Pin collection'}
+          className={cn(
+            'p-1.5 rounded transition-all shrink-0',
+            collection.pinned
+              ? 'opacity-100 text-accent hover:text-subtle'
+              : 'opacity-0 group-hover:opacity-100 text-subtle hover:text-accent',
+            'hover:bg-overlay cursor-pointer',
+          )}
+        >
+          {collection.pinned ? <PinOff size={12} /> : <Pin size={12} />}
+        </button>
 
         <CollectionAuthModal collection={collection} envVariables={envVariables}>
           <button
@@ -473,6 +489,7 @@ function SortableCollectionItem({
   envVariables,
   onRequestSelect,
   onRequestSend,
+  onPin,
 }: {
   collection: Collection
   isLast: boolean
@@ -482,6 +499,7 @@ function SortableCollectionItem({
   envVariables: Record<string, string>
   onRequestSelect: (req: SavedRequest) => void
   onRequestSend: (req: SavedRequest) => void
+  onPin: (id: string) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: collection.id, data: { type: 'collection' } })
@@ -500,6 +518,7 @@ function SortableCollectionItem({
         envVariables={envVariables}
         onRequestSelect={onRequestSelect}
         onRequestSend={onRequestSend}
+        onPin={onPin}
       />
     </div>
   )
@@ -532,7 +551,11 @@ export function Sidebar({ activeRequestId, activeDraftId, isDirty, newDrafts = [
   const { mutate: reorderCollections } = useReorderCollections()
   const { mutate: reorderRequests } = useReorderRequests()
   const { mutate: moveRequest } = useMoveRequest()
+  const { mutate: pinCollection } = usePinCollection()
   const queryClient = useQueryClient()
+
+  const pinnedCollections = collections.filter((c) => c.pinned)
+  const unpinnedCollections = collections.filter((c) => !c.pinned)
 
   const isDraggingDisabled = search !== ''
 
@@ -548,19 +571,28 @@ export function Sidebar({ activeRequestId, activeDraftId, isDirty, newDrafts = [
     const activeType = active.data.current?.type as string | undefined
     const overType = over.data.current?.type as string | undefined
 
-    // ── Collection reorder ─────────────────────────────────────────────────
+    // ── Collection reorder (within same pinned/unpinned group) ────────────
     if (activeType === 'collection' && overType === 'collection') {
-      const oldIndex = collections.findIndex((c) => c.id === active.id)
-      const newIndex = collections.findIndex((c) => c.id === over.id)
-      const reordered = arrayMove(collections, oldIndex, newIndex)
+      const activeIsPinned = collections.find((c) => c.id === active.id)?.pinned ?? false
+      const overIsPinned = collections.find((c) => c.id === over.id)?.pinned ?? false
+      // Only reorder within the same group
+      if (activeIsPinned !== overIsPinned) return
 
-      // Optimistic update directly in the React Query cache
+      const group = activeIsPinned ? pinnedCollections : unpinnedCollections
+      const oldIndex = group.findIndex((c) => c.id === active.id)
+      const newIndex = group.findIndex((c) => c.id === over.id)
+      const reorderedGroup = arrayMove(group, oldIndex, newIndex)
+      const otherGroup = activeIsPinned ? unpinnedCollections : pinnedCollections
+      // Preserve global order: pinned first, then unpinned
+      const reordered = activeIsPinned
+        ? [...reorderedGroup, ...otherGroup]
+        : [...otherGroup, ...reorderedGroup]
+
       const cached = queryClient.getQueryData<PageResponse<Collection>>(['collections'])
       if (cached) queryClient.setQueryData(['collections'], { ...cached, data: reordered })
 
       reorderCollections(reordered.map((c) => c.id), {
         onError: () => {
-          // Roll back optimistic update
           if (cached) queryClient.setQueryData(['collections'], cached)
           toast('Failed to save collection order.')
         },
@@ -717,23 +749,49 @@ export function Sidebar({ activeRequestId, activeDraftId, isDirty, newDrafts = [
           </div>
         )}
 
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={collections.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-            {collections.map((col) => (
-              <SortableCollectionItem
-                key={col.id}
-                collection={col}
-                isLast={collections.length === 1}
-                search={search}
-                activeRequestId={activeRequestId}
-                isDirty={isDirty}
-                envVariables={envVariables}
-                onRequestSelect={onRequestSelect}
-                onRequestSend={onRequestSend}
-              />
-            ))}
-          </SortableContext>
-        </DndContext>
+        {/* Pinned collections */}
+        {!isLoading && !isError && pinnedCollections.length > 0 && !search && (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={pinnedCollections.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+              {pinnedCollections.map((col) => (
+                <SortableCollectionItem
+                  key={col.id}
+                  collection={col}
+                  isLast={collections.length === 1}
+                  search={search}
+                  activeRequestId={activeRequestId}
+                  isDirty={isDirty}
+                  envVariables={envVariables}
+                  onRequestSelect={onRequestSelect}
+                  onRequestSend={onRequestSend}
+                  onPin={pinCollection}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
+        )}
+
+        {/* Unpinned collections */}
+        {!isLoading && !isError && (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={unpinnedCollections.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+              {(search ? collections : unpinnedCollections).map((col) => (
+                <SortableCollectionItem
+                  key={col.id}
+                  collection={col}
+                  isLast={collections.length === 1}
+                  search={search}
+                  activeRequestId={activeRequestId}
+                  isDirty={isDirty}
+                  envVariables={envVariables}
+                  onRequestSelect={onRequestSelect}
+                  onRequestSend={onRequestSend}
+                  onPin={pinCollection}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
+        )}
         </div>
       </>}
     </aside>
