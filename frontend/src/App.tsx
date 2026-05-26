@@ -39,6 +39,63 @@ const HTTP_STATUS_TEXT: Record<number, string> = {
   500: 'Internal Server Error', 502: 'Bad Gateway', 503: 'Service Unavailable', 504: 'Gateway Timeout',
 }
 
+const draftKey = (id: string) => `fling:draft:${id}`
+
+function saveDraft(id: string, state: object) {
+  localStorage.setItem(draftKey(id), JSON.stringify(state))
+}
+
+function loadDraft(id: string) {
+  try {
+    const raw = localStorage.getItem(draftKey(id))
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    localStorage.removeItem(draftKey(id))
+    return null
+  }
+}
+
+function clearDraft(id: string) {
+  localStorage.removeItem(draftKey(id))
+}
+
+// ─── New-request draft helpers ────────────────────────────────────────────────
+
+export interface NewDraft {
+  id: string
+  method: string
+  url: string
+}
+
+const NEW_DRAFTS_KEY = 'fling:new-drafts'
+const newDraftDataKey = (id: string) => `fling:new-draft:${id}`
+
+function loadNewDrafts(): NewDraft[] {
+  try {
+    const raw = localStorage.getItem(NEW_DRAFTS_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
+function saveNewDraftsList(drafts: NewDraft[]) {
+  localStorage.setItem(NEW_DRAFTS_KEY, JSON.stringify(drafts))
+}
+
+function saveNewDraftData(id: string, state: object) {
+  localStorage.setItem(newDraftDataKey(id), JSON.stringify(state))
+}
+
+function loadNewDraftData(id: string) {
+  try {
+    const raw = localStorage.getItem(newDraftDataKey(id))
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+function removeNewDraftData(id: string) {
+  localStorage.removeItem(newDraftDataKey(id))
+}
+
 function guessBodyType(body?: string | null, headers?: Record<string, string>): 'NONE' | 'JSON' | 'FORM' | 'TEXT' {
   if (!body) return 'NONE'
   const ct = Object.entries(headers ?? {}).find(([k]) => k.toLowerCase() === 'content-type')?.[1] ?? ''
@@ -70,6 +127,10 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
   // ── Active saved request (set when loaded from sidebar) ───────────────────
   const [activeRequest, setActiveRequest] = useState<SavedRequest | null>(null)
 
+  // ── New-request drafts ─────────────────────────────────────────────────────
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null)
+  const [newDrafts, setNewDrafts] = useState<NewDraft[]>(loadNewDrafts)
+
   // ── Response state ─────────────────────────────────────────────────────────
   const [response, setResponse] = useState<ExecuteResponse | null>(null)
   const [executeError, setExecuteError] = useState<string | null>(null)
@@ -81,6 +142,48 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
   const [selectedEnv, setSelectedEnv] = useState('none')
   const { data: environments = [] } = useEnvironments()
   const { data: collections = [] } = useCollections()
+
+  // ── Dirty check — true when current editor state differs from the active saved request ──
+  const isDirty = useMemo(() => {
+    if (!activeRequest) return false
+    if (method !== activeRequest.method) return true
+    if (url.split('?')[0] !== activeRequest.url) return true
+    if (body !== (activeRequest.body ?? '')) return true
+    if (bodyType !== activeRequest.bodyType) return true
+    const activeParams = activeRequest.queryParams.filter((p) => p.key.trim() !== '')
+    const currentParams = params.filter((p) => p.key.trim() !== '')
+    if (activeParams.length !== currentParams.length) return true
+    if (activeParams.some((p, i) => p.key !== currentParams[i]?.key || p.value !== currentParams[i]?.value || p.enabled !== currentParams[i]?.enabled)) return true
+    const activeHeaders = activeRequest.headers.filter((h) => h.key.trim() !== '')
+    const currentHeaders = headers.filter((h) => h.key.trim() !== '')
+    if (activeHeaders.length !== currentHeaders.length) return true
+    if (activeHeaders.some((h, i) => h.key !== currentHeaders[i]?.key || h.value !== currentHeaders[i]?.value || h.enabled !== currentHeaders[i]?.enabled)) return true
+    if (auth.type !== savedAuth.type || auth.enabled !== savedAuth.enabled || auth.username !== savedAuth.username || auth.password !== savedAuth.password) return true
+    return false
+  }, [activeRequest, method, url, params, headers, body, bodyType, auth, savedAuth])
+
+  // ── Persist draft to localStorage while dirty ─────────────────────────────
+  useEffect(() => {
+    if (!activeRequest || !isDirty) return
+    const timer = setTimeout(() => {
+      saveDraft(activeRequest.id, { method, url, params, headers, body, bodyType, auth })
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [activeRequest, isDirty, method, url, params, headers, body, bodyType, auth])
+
+  // ── Auto-save new draft data + update sidebar label ───────────────────────
+  useEffect(() => {
+    if (!activeDraftId) return
+    const timer = setTimeout(() => {
+      saveNewDraftData(activeDraftId, { method, url, params, headers, body, bodyType, auth })
+      setNewDrafts((prev) => {
+        const updated = prev.map((d) => d.id === activeDraftId ? { ...d, method, url: url.split('?')[0] } : d)
+        saveNewDraftsList(updated)
+        return updated
+      })
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [activeDraftId, method, url, params, headers, body, bodyType, auth])
 
   // ── Collection auth for the active request ─────────────────────────────────
   const collectionAuth = useMemo(() => {
@@ -112,8 +215,17 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
     setEnvOverrides({})
   }, [selectedEnv, baseEnvVariables])
 
-  // ── Reset to blank request ─────────────────────────────────────────────────
+  // ── Create a new unsaved draft ─────────────────────────────────────────────
   function handleNewRequest() {
+    const id = crypto.randomUUID()
+    const initialState = { method: 'GET', url: 'https://', params: [makeRow()], headers: [makeRow()], body: '', bodyType: 'NONE' as const, auth: defaultAuth }
+    const draft: NewDraft = { id, method: 'GET', url: 'https://' }
+    const updated = [...newDrafts, draft]
+    setNewDrafts(updated)
+    saveNewDraftsList(updated)
+    saveNewDraftData(id, initialState)
+
+    setActiveDraftId(id)
     setActiveRequest(null)
     setMethod('GET')
     setUrl('https://')
@@ -126,6 +238,56 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
     setRequestTab('params')
     setResponse(null)
     setExecuteError(null)
+  }
+
+  // ── Load an existing new-request draft ─────────────────────────────────────
+  function handleDraftSelect(id: string) {
+    const data = loadNewDraftData(id)
+    setActiveDraftId(id)
+    setActiveRequest(null)
+    if (data) {
+      setMethod(data.method)
+      setUrl(data.url)
+      setParams(data.params.map((p: KeyValue) => ({ ...p, id: crypto.randomUUID() })))
+      setHeaders(data.headers.map((h: KeyValue) => ({ ...h, id: crypto.randomUUID() })))
+      setBody(data.body)
+      setBodyType(data.bodyType)
+      setAuth(data.auth ?? defaultAuth)
+      setSavedAuth(defaultAuth)
+    } else {
+      setMethod('GET')
+      setUrl('https://')
+      setParams([makeRow()])
+      setHeaders([makeRow()])
+      setBody('')
+      setBodyType('NONE')
+      setAuth(defaultAuth)
+      setSavedAuth(defaultAuth)
+    }
+    setResponse(null)
+    setExecuteError(null)
+  }
+
+  // ── Discard a new-request draft ────────────────────────────────────────────
+  function handleDraftDiscard(id: string) {
+    removeNewDraftData(id)
+    const updated = newDrafts.filter((d) => d.id !== id)
+    setNewDrafts(updated)
+    saveNewDraftsList(updated)
+    if (activeDraftId === id) {
+      setActiveDraftId(null)
+      setActiveRequest(null)
+      setMethod('GET')
+      setUrl('https://')
+      setParams([makeRow()])
+      setHeaders([makeRow()])
+      setBody('')
+      setBodyType('NONE')
+      setAuth(defaultAuth)
+      setSavedAuth(defaultAuth)
+      setResponse(null)
+      setExecuteError(null)
+    }
   }
 
   // ── URL ↔ params two-way sync ──────────────────────────────────────────────
@@ -172,18 +334,57 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
 
   // ── Load saved request ─────────────────────────────────────────────────────
   function handleRequestSelect(req: SavedRequest) {
-    const bodyless = req.method === 'GET' || req.method === 'DELETE'
+    setActiveDraftId(null)
     setActiveRequest(req)
-    setMethod(req.method)
-    setUrl((req.url || 'https://').split('?')[0])
-    setParams(req.queryParams.map((p) => ({ ...p, id: crypto.randomUUID() })))
-    setHeaders(req.headers.map((h) => ({ ...h, id: crypto.randomUUID() })))
-    setBody(bodyless ? '' : (req.body ?? ''))
-    setBodyType(bodyless ? 'NONE' : req.bodyType)
     const storedAuth = req.auth ?? defaultAuth
-    setAuth(storedAuth)
     setSavedAuth(storedAuth)
+
+    const draft = loadDraft(req.id)
+    if (draft) {
+      setMethod(draft.method)
+      setUrl(draft.url)
+      setParams(draft.params.map((p: KeyValue) => ({ ...p, id: crypto.randomUUID() })))
+      setHeaders(draft.headers.map((h: KeyValue) => ({ ...h, id: crypto.randomUUID() })))
+      setBody(draft.body)
+      setBodyType(draft.bodyType)
+      setAuth(draft.auth)
+    } else {
+      const bodyless = req.method === 'GET' || req.method === 'DELETE'
+      setMethod(req.method)
+      const baseUrl = (req.url || 'https://').split('?')[0]
+      const loadedParams = req.queryParams.map((p) => ({ ...p, id: crypto.randomUUID() }))
+      const activeParams = loadedParams.filter((p) => p.enabled && p.key.trim() !== '')
+      setUrl(activeParams.length > 0 ? `${baseUrl}?${activeParams.map((p) => `${p.key}=${p.value}`).join('&')}` : baseUrl)
+      setParams(loadedParams)
+      setHeaders(req.headers.map((h) => ({ ...h, id: crypto.randomUUID() })))
+      setBody(bodyless ? '' : (req.body ?? ''))
+      setBodyType(bodyless ? 'NONE' : req.bodyType)
+      setAuth(storedAuth)
+    }
     setResponse(null)
+    setExecuteError(null)
+
+    const detail = req.latestHistory
+    if (!detail || detail.responseStatus == null) return
+    setResponse({
+      historyId: detail.id,
+      request: {
+        method: detail.method,
+        url: detail.url,
+        queryParams: detail.queryParams ?? {},
+        headers: detail.headers ?? {},
+        body: detail.body,
+      },
+      response: {
+        status: detail.responseStatus,
+        statusText: HTTP_STATUS_TEXT[detail.responseStatus] ?? '',
+        headers: detail.responseHeaders ?? {},
+        body: detail.responseBody,
+        durationMs: detail.durationMs ?? 0,
+        bodySize: detail.responseBody?.length ?? 0,
+      },
+    })
+    setResponseTab('body')
   }
 
   // ── Shared execute logic ───────────────────────────────────────────────────
@@ -210,6 +411,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
       setResponse(data)
       setResponseTab('body')
       queryClient.refetchQueries({ queryKey: ['history'] })
+      queryClient.invalidateQueries({ queryKey: ['requests'] })
     } catch (err) {
       setExecuteError(err instanceof Error ? err.message : 'Request failed')
     } finally {
@@ -226,6 +428,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
     const hasManualAuth = activeHeaders.some((h) => h.key.toLowerCase() === 'authorization')
     const mergedHeaders = authHeader && !hasManualAuth ? [authHeader, ...activeHeaders] : activeHeaders
     executeRequest({
+      requestId: req.id,
       environmentId: selectedEnv === 'none' ? undefined : selectedEnv,
       method: req.method,
       url: req.url,
@@ -242,6 +445,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
       const detail = await api.getHistory(id)
       const bodyless = detail.method === 'GET' || detail.method === 'DELETE'
 
+      setActiveDraftId(null)
       setActiveRequest(null)
       setMethod(detail.method as HttpMethod)
       setUrl((detail.url || 'https://').split('?')[0])
@@ -305,6 +509,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
     const hasManualAuth = activeHeaders.some((h) => h.key.toLowerCase() === 'authorization')
     const mergedHeaders = authHeader && !hasManualAuth ? [authHeader, ...activeHeaders] : activeHeaders
     executeRequest({
+      requestId: activeRequest?.id,
       environmentId: selectedEnv === 'none' ? undefined : selectedEnv,
       method,
       url,
@@ -324,10 +529,15 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           activeRequestId={activeRequest?.id}
+          activeDraftId={activeDraftId}
+          isDirty={isDirty}
+          newDrafts={newDrafts}
           envVariables={envVariables}
           onRequestSelect={handleRequestSelect}
           onRequestSend={handleRequestSend}
           onHistorySelect={handleHistorySelect}
+          onDraftSelect={handleDraftSelect}
+          onDraftDiscard={handleDraftDiscard}
         />
 
         <main className="flex flex-col flex-1 overflow-hidden">
@@ -345,6 +555,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
                 collectionAuth={collectionAuth}
                 activeTab={requestTab}
                 activeRequest={activeRequest}
+                isDirty={isDirty}
                 envVariables={envVariables}
                 onMethodChange={handleMethodChange}
                 onUrlChange={handleUrlChange}
@@ -355,7 +566,20 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
                 onAuthChange={setAuth}
                 onTabChange={setRequestTab}
                 onSend={handleSend}
-                onSaved={(saved) => { setActiveRequest(saved); setSavedAuth(auth) }}
+                onSaved={(saved) => {
+                  setActiveRequest(saved)
+                  setSavedAuth(auth)
+                  clearDraft(saved.id)
+                  if (activeDraftId) {
+                    removeNewDraftData(activeDraftId)
+                    setNewDrafts((prev) => {
+                      const updated = prev.filter((d) => d.id !== activeDraftId)
+                      saveNewDraftsList(updated)
+                      return updated
+                    })
+                    setActiveDraftId(null)
+                  }
+                }}
               />
             </div>
             <RightPanel

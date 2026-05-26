@@ -20,6 +20,7 @@ import {
 } from '../../hooks/useCollections'
 import { api } from '../../lib/apiClient'
 import type { Collection, PageResponse, SavedRequest } from '../../types/api'
+import type { NewDraft } from '../../App'
 import { CollectionAuthModal } from './CollectionAuthModal'
 
 // ─── Highlight ───────────────────────────────────────────────────────────────
@@ -148,6 +149,7 @@ function SortableRequestItem({
   req,
   collectionId,
   activeRequestId,
+  isDirty,
   search,
   showDragHandle,
   onRequestSelect,
@@ -159,6 +161,7 @@ function SortableRequestItem({
   req: SavedRequest
   collectionId: string
   activeRequestId?: string
+  isDirty?: boolean
   search: string
   showDragHandle: boolean
   onRequestSelect: (req: SavedRequest) => void
@@ -184,6 +187,7 @@ function SortableRequestItem({
     >
       <button
         onClick={() => onRequestSelect(req)}
+        title={req.name}
         className={cn(
           'flex items-center gap-2 flex-1 min-w-0 px-3 py-1.5 pl-8 text-xs transition-colors',
           isActive ? 'text-text' : 'text-muted group-hover:text-text',
@@ -191,6 +195,9 @@ function SortableRequestItem({
       >
         <MethodBadge method={req.method} />
         <span className="truncate"><Highlight text={req.name} query={search} /></span>
+        {(isActive ? isDirty : !!localStorage.getItem(`fling:draft:${req.id}`)) && (
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Unsaved changes" />
+        )}
       </button>
 
       <button
@@ -259,6 +266,7 @@ function CollectionItem({
   isLast,
   search,
   activeRequestId,
+  isDirty,
   dragHandleProps,
   envVariables,
   onRequestSelect,
@@ -268,6 +276,7 @@ function CollectionItem({
   isLast: boolean
   search: string
   activeRequestId?: string
+  isDirty?: boolean
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>
   envVariables: Record<string, string>
   onRequestSelect: (req: SavedRequest) => void
@@ -431,6 +440,7 @@ function CollectionItem({
                   req={req}
                   collectionId={collection.id}
                   activeRequestId={activeRequestId}
+                  isDirty={isDirty}
                   search={search}
                   showDragHandle={showDragHandle}
                   onRequestSelect={onRequestSelect}
@@ -459,6 +469,7 @@ function SortableCollectionItem({
   isLast,
   search,
   activeRequestId,
+  isDirty,
   envVariables,
   onRequestSelect,
   onRequestSend,
@@ -467,6 +478,7 @@ function SortableCollectionItem({
   isLast: boolean
   search: string
   activeRequestId?: string
+  isDirty?: boolean
   envVariables: Record<string, string>
   onRequestSelect: (req: SavedRequest) => void
   onRequestSend: (req: SavedRequest) => void
@@ -483,6 +495,7 @@ function SortableCollectionItem({
         isLast={isLast}
         search={search}
         activeRequestId={activeRequestId}
+        isDirty={isDirty}
         dragHandleProps={{ ...attributes, ...listeners } as React.HTMLAttributes<HTMLButtonElement>}
         envVariables={envVariables}
         onRequestSelect={onRequestSelect}
@@ -500,13 +513,18 @@ function SortableCollectionItem({
 
 interface SidebarProps {
   activeRequestId?: string
+  activeDraftId?: string | null
+  isDirty?: boolean
+  newDrafts?: NewDraft[]
   envVariables: Record<string, string>
   onRequestSelect: (req: SavedRequest) => void
   onRequestSend: (req: SavedRequest) => void
   onHistorySelect: (id: string) => void
+  onDraftSelect?: (id: string) => void
+  onDraftDiscard?: (id: string) => void
 }
 
-export function Sidebar({ activeRequestId, envVariables, onRequestSelect, onRequestSend, onHistorySelect }: SidebarProps) {
+export function Sidebar({ activeRequestId, activeDraftId, isDirty, newDrafts = [], envVariables, onRequestSelect, onRequestSend, onHistorySelect, onDraftSelect, onDraftDiscard }: SidebarProps) {
   const [view, setView] = useState<'collections' | 'history'>('collections')
   const [search, setSearch] = useState('')
   const toast = useToast()
@@ -590,7 +608,7 @@ export function Sidebar({ activeRequestId, envVariables, onRequestSelect, onRequ
   }
 
   return (
-    <aside className="flex flex-col w-56 shrink-0 border-r border-border bg-elevated overflow-hidden">
+    <aside className="flex flex-col w-64 shrink-0 border-r border-border bg-elevated overflow-hidden">
       {/* View tabs */}
       <div className="flex shrink-0 border-b border-border">
         {(['collections', 'history'] as const).map((v) => (
@@ -625,7 +643,53 @@ export function Sidebar({ activeRequestId, envVariables, onRequestSelect, onRequ
           </div>
         </div>
 
-        {/* Header */}
+        {/* Drafts section */}
+        {newDrafts.length > 0 && !search && (
+          <div className="shrink-0 border-b border-border">
+            <div className="flex items-center px-3 py-1.5">
+              <span className="text-[10px] font-semibold text-subtle uppercase tracking-widest">Drafts</span>
+            </div>
+            <div className="px-1.5 pb-1.5 space-y-0.5">
+              {newDrafts.map((draft) => {
+                const isActive = draft.id === activeDraftId
+                const displayUrl = draft.url && draft.url !== 'https://' ? draft.url.split('?')[0] : 'New request'
+                return (
+                  <div
+                    key={draft.id}
+                    className={cn(
+                      'flex items-center group rounded-sm transition-colors',
+                      isActive ? 'bg-accent/10' : 'hover:bg-overlay',
+                    )}
+                  >
+                    <button
+                      onClick={() => onDraftSelect?.(draft.id)}
+                      className={cn(
+                        'flex items-center gap-2 flex-1 min-w-0 px-3 py-1.5 text-xs transition-colors',
+                        isActive ? 'text-text' : 'text-muted group-hover:text-text',
+                      )}
+                    >
+                      <MethodBadge method={draft.method} />
+                      <span className="truncate italic">{displayUrl}</span>
+                    </button>
+                    <button
+                      onClick={() => onDraftDiscard?.(draft.id)}
+                      title="Discard draft"
+                      className={cn(
+                        'p-1.5 mr-1 rounded transition-all shrink-0',
+                        'opacity-0 group-hover:opacity-100',
+                        'text-subtle hover:text-status-5xx hover:bg-red-950/40 cursor-pointer',
+                      )}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Collections header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
           <span className="text-[10px] font-semibold text-subtle uppercase tracking-widest">Collections</span>
           <CreateCollectionDialog>
@@ -662,6 +726,7 @@ export function Sidebar({ activeRequestId, envVariables, onRequestSelect, onRequ
                 isLast={collections.length === 1}
                 search={search}
                 activeRequestId={activeRequestId}
+                isDirty={isDirty}
                 envVariables={envVariables}
                 onRequestSelect={onRequestSelect}
                 onRequestSend={onRequestSend}
