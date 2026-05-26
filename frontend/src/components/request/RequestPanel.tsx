@@ -150,6 +150,13 @@ export function RequestPanel({
 
   return (
     <div className="flex flex-col h-full">
+      {/* Request name */}
+      {activeRequest && (
+        <div className="shrink-0 px-4 pt-3 pb-1">
+          <h2 className="text-sm font-semibold text-text truncate">{activeRequest.name}</h2>
+        </div>
+      )}
+
       {/* URL bar */}
       <div className="shrink-0 border-b border-border">
       <div className="flex items-center p-3 gap-0">
