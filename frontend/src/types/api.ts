@@ -1,12 +1,13 @@
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
-export type AuthType = 'none' | 'basic' | 'inherit'
+export type AuthType = 'none' | 'basic' | 'bearer' | 'inherit'
 
 export interface AuthConfig {
   type: AuthType
   enabled: boolean
   username: string
   password: string
+  token?: string
 }
 
 export interface KeyValue {

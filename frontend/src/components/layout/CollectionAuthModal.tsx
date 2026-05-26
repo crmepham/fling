@@ -70,6 +70,7 @@ export function CollectionAuthModal({ collection, envVariables, children }: Prop
               >
                 <option value="none">None</option>
                 <option value="basic">Basic</option>
+                <option value="bearer">Bearer token</option>
               </select>
             </div>
 
@@ -105,6 +106,29 @@ export function CollectionAuthModal({ collection, envVariables, children }: Prop
                   Authorization: Basic {btoa(`${resolveVars(auth.username, envVariables)}:${resolveVars(auth.password, envVariables)}`)}
                 </p>
               </div>
+            )}
+
+            {auth.type === 'bearer' && (
+              <>
+                <div className="flex items-center gap-4">
+                  <label className="text-xs text-subtle w-20 shrink-0">Token</label>
+                  <VarColoredInput
+                    value={auth.token ?? ''}
+                    onChange={(v) => setAuth({ ...auth, token: v })}
+                    placeholder="your-token"
+                    envVariables={envVariables}
+                    className="w-full bg-transparent text-xs font-mono outline-none py-0.5 border-b border-transparent focus:border-accent transition-colors flex-1"
+                  />
+                </div>
+                {auth.token && (
+                  <div className="rounded border border-border bg-elevated px-3 py-2 space-y-1">
+                    <p className="text-[10px] font-semibold text-subtle uppercase tracking-widest">Header preview</p>
+                    <p className="text-xs font-mono break-all text-text">
+                      Authorization: Bearer {resolveVars(auth.token, envVariables)}
+                    </p>
+                  </div>
+                )}
+              </>
             )}
 
             {auth.type === 'none' && (

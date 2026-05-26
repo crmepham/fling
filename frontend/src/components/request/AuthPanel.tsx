@@ -34,6 +34,7 @@ export function AuthPanel({ auth, onChange, envVariables, hasCollection = false,
           <option value="none">None</option>
           {hasCollection && <option value="inherit">Inherit from collection</option>}
           <option value="basic">Basic</option>
+          <option value="bearer">Bearer token</option>
         </select>
       </div>
 
@@ -91,13 +92,59 @@ export function AuthPanel({ auth, onChange, envVariables, hasCollection = false,
         </>
       )}
 
+      {auth.type === 'bearer' && (
+        <>
+          <div className="flex items-center gap-4">
+            <label className="text-xs text-subtle w-24 shrink-0">Enabled</label>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={auth.enabled}
+                onChange={(e) => onChange({ ...auth, enabled: e.target.checked })}
+                className="w-3.5 h-3.5 accent-accent cursor-pointer"
+              />
+              <span className="text-xs text-muted">
+                {auth.enabled ? 'Authorization header will be sent' : 'Authorization header is disabled'}
+              </span>
+            </label>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <label className="text-xs text-subtle w-24 shrink-0">Token</label>
+            <VarColoredInput
+              value={auth.token ?? ''}
+              onChange={(v) => onChange({ ...auth, token: v })}
+              placeholder="your-token"
+              envVariables={envVariables}
+              className={cn(inputClass, 'flex-1', !auth.enabled && 'opacity-50')}
+            />
+          </div>
+
+          {auth.token && (
+            <div className="rounded border border-border bg-elevated px-3 py-2 space-y-1">
+              <p className="text-[10px] font-semibold text-subtle uppercase tracking-widest">Header preview</p>
+              <p className={cn('text-xs font-mono break-all', auth.enabled ? 'text-text' : 'text-subtle line-through')}>
+                Authorization: Bearer {resolveVars(auth.token, envVariables)}
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
       {auth.type === 'inherit' && (
         <div className="space-y-3">
-          {collectionAuth && collectionAuth.type !== 'none' ? (
+          {collectionAuth && collectionAuth.type === 'basic' ? (
             <div className="rounded border border-border bg-elevated px-3 py-2 space-y-1">
               <p className="text-[10px] font-semibold text-subtle uppercase tracking-widest">Inherited header</p>
               <p className="text-xs font-mono break-all text-accent">
                 Authorization: Basic {btoa(`${resolveVars(collectionAuth.username, envVariables)}:${resolveVars(collectionAuth.password, envVariables)}`)}
+              </p>
+            </div>
+          ) : collectionAuth && collectionAuth.type === 'bearer' ? (
+            <div className="rounded border border-border bg-elevated px-3 py-2 space-y-1">
+              <p className="text-[10px] font-semibold text-subtle uppercase tracking-widest">Inherited header</p>
+              <p className="text-xs font-mono break-all text-accent">
+                Authorization: Bearer {resolveVars(collectionAuth.token ?? '', envVariables)}
               </p>
             </div>
           ) : (

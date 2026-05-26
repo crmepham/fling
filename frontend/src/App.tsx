@@ -122,7 +122,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
   const [requestTab, setRequestTab] = useState<'params' | 'headers' | 'body' | 'auth'>('params')
 
   // ── Auth state ─────────────────────────────────────────────────────────────
-  const defaultAuth: AuthConfig = { type: 'none', enabled: true, username: '', password: '' }
+  const defaultAuth: AuthConfig = { type: 'none', enabled: true, username: '', password: '', token: '' }
   const [auth, setAuth] = useState<AuthConfig>(defaultAuth)
   const [savedAuth, setSavedAuth] = useState<AuthConfig>(defaultAuth)
 
@@ -163,7 +163,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
     const currentHeaders = headers.filter((h) => h.key.trim() !== '')
     if (activeHeaders.length !== currentHeaders.length) return true
     if (activeHeaders.some((h, i) => h.key !== currentHeaders[i]?.key || h.value !== currentHeaders[i]?.value || h.enabled !== currentHeaders[i]?.enabled)) return true
-    if (auth.type !== savedAuth.type || auth.enabled !== savedAuth.enabled || auth.username !== savedAuth.username || auth.password !== savedAuth.password) return true
+    if (auth.type !== savedAuth.type || auth.enabled !== savedAuth.enabled || auth.username !== savedAuth.username || auth.password !== savedAuth.password || (auth.token ?? '') !== (savedAuth.token ?? '')) return true
     return false
   }, [activeRequest, method, url, params, headers, body, bodyType, auth, savedAuth])
 
@@ -519,10 +519,16 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
   // ── Send handler ───────────────────────────────────────────────────────────
   function buildAuthHeader(): { key: string; value: string; enabled: boolean } | null {
     const effective = auth.type === 'inherit' ? collectionAuth : auth
-    if (!effective || effective.type !== 'basic' || !effective.enabled) return null
-    const username = resolveVars(effective.username, envVariables)
-    const password = resolveVars(effective.password, envVariables)
-    return { key: 'Authorization', value: `Basic ${btoa(`${username}:${password}`)}`, enabled: true }
+    if (!effective || !effective.enabled) return null
+    if (effective.type === 'basic') {
+      const username = resolveVars(effective.username, envVariables)
+      const password = resolveVars(effective.password, envVariables)
+      return { key: 'Authorization', value: `Basic ${btoa(`${username}:${password}`)}`, enabled: true }
+    }
+    if (effective.type === 'bearer' && effective.token) {
+      return { key: 'Authorization', value: `Bearer ${resolveVars(effective.token, envVariables)}`, enabled: true }
+    }
+    return null
   }
 
   function handleSend() {
