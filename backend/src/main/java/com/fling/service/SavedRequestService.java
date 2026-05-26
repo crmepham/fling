@@ -63,7 +63,11 @@ public class SavedRequestService {
 
     @Transactional(readOnly = true)
     public SavedRequestResponse get(User user, UUID id) {
-        return SavedRequestResponse.of(findOrThrow(user, id));
+        var request = findOrThrow(user, id);
+        var latestHistory = historyRepository
+                .findFirstByUserAndRequestIdOrderBySentAtDesc(user, request.getId())
+                .orElse(null);
+        return SavedRequestResponse.of(request, latestHistory);
     }
 
     @Transactional

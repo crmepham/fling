@@ -77,6 +77,45 @@ class SavedRequestServiceTest {
     }
 
     @Test
+    void get_includesLatestHistory_whenHistoryExists() {
+        var id = UUID.randomUUID();
+        savedRequest.setId(id);
+
+        var history = new RequestHistory();
+        history.setId(UUID.randomUUID());
+        history.setMethod("GET");
+        history.setUrl("https://api.example.com/users");
+        history.setResponseStatus(200);
+        history.setDurationMs(55);
+        history.setSentAt(OffsetDateTime.now());
+        history.setRequest(savedRequest);
+        history.setUser(user);
+
+        when(requestRepository.findByIdAndUser(id, user)).thenReturn(Optional.of(savedRequest));
+        when(historyRepository.findFirstByUserAndRequestIdOrderBySentAtDesc(user, id))
+                .thenReturn(Optional.of(history));
+
+        var result = savedRequestService.get(user, id);
+
+        assertThat(result.latestHistory()).isNotNull();
+        assertThat(result.latestHistory().responseStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void get_returnsNullLatestHistory_whenNoHistoryExists() {
+        var id = UUID.randomUUID();
+        savedRequest.setId(id);
+
+        when(requestRepository.findByIdAndUser(id, user)).thenReturn(Optional.of(savedRequest));
+        when(historyRepository.findFirstByUserAndRequestIdOrderBySentAtDesc(user, id))
+                .thenReturn(Optional.empty());
+
+        var result = savedRequestService.get(user, id);
+
+        assertThat(result.latestHistory()).isNull();
+    }
+
+    @Test
     void create_throwsNotFound_whenCollectionDoesNotExist() {
         var collectionId = UUID.randomUUID();
         when(collectionRepository.findByIdAndUser(collectionId, user)).thenReturn(Optional.empty());
