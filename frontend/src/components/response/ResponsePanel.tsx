@@ -111,7 +111,7 @@ export function ResponsePanel({ response, error, isExecuting, activeTab, onTabCh
               key={tab.id}
               value={tab.id}
               className={cn(
-                'px-3 py-2.5 text-xs font-medium transition-colors relative select-none',
+                'px-3 py-2.5 text-xs font-medium transition-colors relative select-none cursor-pointer',
                 'text-subtle hover:text-muted',
                 'data-[state=active]:text-text',
                 'after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px',
@@ -129,7 +129,7 @@ export function ResponsePanel({ response, error, isExecuting, activeTab, onTabCh
                 onClick={handleCopy}
                 title="Copy to clipboard"
                 className={cn(
-                  'flex items-center gap-1.5 h-6 px-2 rounded text-[10px] transition-colors',
+                  'flex items-center gap-1.5 h-6 px-2 rounded text-[10px] transition-colors cursor-pointer',
                   copied
                     ? 'text-green-400 bg-green-400/10'
                     : 'text-subtle hover:text-text hover:bg-overlay',

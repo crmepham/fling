@@ -1,4 +1,4 @@
-import type { ExecuteRequest, ExecuteResponse, HistoryDetail, HistorySummary, PageResponse, Collection, SavedRequest, EnvironmentSummary, EnvironmentDetail, AuthConfig } from '../types/api'
+import type { ExecuteRequest, ExecuteResponse, HistoryDetail, HistorySummary, PageResponse, Collection, SavedRequest, EnvironmentSummary, EnvironmentDetail, AuthConfig, ResponseExtraction } from '../types/api'
 
 const BASE = '/api/v1'
 
@@ -84,6 +84,7 @@ export const api = {
     body?: string
     bodyType: string
     auth?: AuthConfig | null
+    responseExtractions?: ResponseExtraction[]
   }) =>
     request<SavedRequest>('/requests', { method: 'POST', body: JSON.stringify(body) }),
 
@@ -97,6 +98,7 @@ export const api = {
     body?: string
     bodyType: string
     auth?: AuthConfig | null
+    responseExtractions?: ResponseExtraction[]
   }) =>
     request<SavedRequest>(`/requests/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
 

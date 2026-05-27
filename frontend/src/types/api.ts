@@ -47,6 +47,12 @@ export interface ExecuteResponse {
   }
 }
 
+export interface ResponseExtraction {
+  source: 'body' | 'header'
+  path: string
+  variableKey: string
+}
+
 export interface SavedRequest {
   id: string
   collectionId?: string
@@ -58,6 +64,7 @@ export interface SavedRequest {
   body?: string
   bodyType: 'NONE' | 'JSON' | 'FORM' | 'TEXT'
   auth?: AuthConfig | null
+  responseExtractions?: ResponseExtraction[]
   createdAt: string
   updatedAt: string
   latestHistory?: {

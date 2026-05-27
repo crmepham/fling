@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { TopBar } from './components/layout/TopBar'
@@ -12,7 +12,8 @@ import { api, setOnUnauthorized } from './lib/apiClient'
 import { resolveVars } from './lib/variables'
 import { useEnvironments, useEnvironmentDetail } from './hooks/useEnvironments'
 import { useCollections } from './hooks/useCollections'
-import type { HttpMethod, KeyValue, ExecuteResponse, SavedRequest, AuthConfig } from './types/api'
+import { useToast } from './lib/toast'
+import type { HttpMethod, KeyValue, ExecuteResponse, SavedRequest, AuthConfig, ResponseExtraction } from './types/api'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -119,7 +120,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
   const [headers, setHeaders] = useState<KeyValue[]>([makeRow()])
   const [body, setBody] = useState('')
   const [bodyType, setBodyType] = useState<'NONE' | 'JSON' | 'FORM' | 'TEXT'>('NONE')
-  const [requestTab, setRequestTab] = useState<'params' | 'headers' | 'body' | 'auth'>('params')
+  const [requestTab, setRequestTab] = useState<'params' | 'headers' | 'body' | 'auth' | 'extract'>('params')
 
   // ── Auth state ─────────────────────────────────────────────────────────────
   const defaultAuth: AuthConfig = { type: 'none', enabled: true, username: '', password: '', token: '' }
@@ -128,6 +129,9 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
 
   // ── Active saved request (set when loaded from sidebar) ───────────────────
   const [activeRequest, setActiveRequest] = useState<SavedRequest | null>(null)
+  const [responseExtractions, setResponseExtractions] = useState<ResponseExtraction[]>([])
+
+  const toast = useToast()
 
   // ── New-request drafts ─────────────────────────────────────────────────────
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null)
@@ -232,6 +236,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
 
     setActiveDraftId(id)
     setActiveRequest(null)
+    setResponseExtractions([])
     setMethod('GET')
     setUrl('https://')
     setParams([makeRow()])
@@ -341,6 +346,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
   function handleRequestSelect(req: SavedRequest) {
     setActiveDraftId(null)
     setActiveRequest(req)
+    setResponseExtractions(req.responseExtractions ?? [])
     const storedAuth = req.auth ?? defaultAuth
     setSavedAuth(storedAuth)
 
@@ -411,8 +417,64 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Apply response extractions to active environment ───────────────────────
+  const applyExtractions = useCallback(async (extractions: ResponseExtraction[], result: ExecuteResponse) => {
+    if (!extractions.length || selectedEnv === 'none' || !envDetail) return
+
+    const extracted: Array<{ key: string; value: string }> = []
+
+    for (const rule of extractions) {
+      if (!rule.path.trim() || !rule.variableKey.trim()) continue
+      let value: string | undefined
+
+      if (rule.source === 'body') {
+        try {
+          let current: unknown = JSON.parse(result.response.body ?? '')
+          for (const part of rule.path.split('.')) {
+            if (current === null || typeof current !== 'object') { current = undefined; break }
+            current = (current as Record<string, unknown>)[part]
+          }
+          if (current !== undefined && current !== null) value = String(current)
+        } catch { /* body not JSON or path not found — skip silently */ }
+      } else if (rule.source === 'header') {
+        const key = Object.keys(result.response.headers).find(
+          (k) => k.toLowerCase() === rule.path.toLowerCase()
+        )
+        if (key) value = result.response.headers[key]
+      }
+
+      if (value !== undefined) extracted.push({ key: rule.variableKey, value })
+    }
+
+    if (!extracted.length) return
+
+    const existing = envDetail.variables.map((v) => ({
+      id: v.id,
+      key: v.key,
+      value: v.isSecret ? '__UNCHANGED__' : (v.value ?? ''),
+      isSecret: v.isSecret,
+    }))
+
+    for (const { key, value } of extracted) {
+      const idx = existing.findIndex((v) => v.key === key)
+      if (idx >= 0) {
+        existing[idx] = { ...existing[idx], value, isSecret: false }
+      } else {
+        existing.push({ id: '', key, value, isSecret: false })
+      }
+    }
+
+    try {
+      await api.bulkUpdateVariables(selectedEnv, existing)
+      queryClient.invalidateQueries({ queryKey: ['environment', selectedEnv] })
+      for (const { key } of extracted) {
+        toast(`Set ${key} from response`, 'success')
+      }
+    } catch { /* non-critical */ }
+  }, [selectedEnv, envDetail, toast])
+
   // ── Shared execute logic ───────────────────────────────────────────────────
-  async function executeRequest(payload: object) {
+  async function executeRequest(payload: object, extractions: ResponseExtraction[] = []) {
     setExecuting(true)
     setExecuteError(null)
     setResponse(null)
@@ -436,6 +498,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
       setResponseTab('body')
       queryClient.refetchQueries({ queryKey: ['history'] })
       queryClient.invalidateQueries({ queryKey: ['requests'] })
+      applyExtractions(extractions, data)
     } catch (err) {
       setExecuteError(err instanceof Error ? err.message : 'Request failed')
     } finally {
@@ -460,7 +523,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
       headers: mergedHeaders,
       body: bodyless ? undefined : (req.body || undefined),
       bodyType: bodyless ? 'NONE' : req.bodyType,
-    })
+    }, req.responseExtractions ?? [])
   }
 
   // ── Load a history item into the form + restore its response ─────────────
@@ -549,7 +612,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
       headers: mergedHeaders,
       body: body || undefined,
       bodyType,
-    })
+    }, responseExtractions)
   }
 
   return (
@@ -587,6 +650,8 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
                 activeRequest={activeRequest}
                 isDirty={isDirty}
                 envVariables={envVariables}
+                hasActiveEnv={selectedEnv !== 'none'}
+                responseExtractions={responseExtractions}
                 onMethodChange={handleMethodChange}
                 onUrlChange={handleUrlChange}
                 onParamsChange={handleParamsChange}
@@ -594,10 +659,12 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
                 onBodyChange={setBody}
                 onBodyTypeChange={setBodyType}
                 onAuthChange={setAuth}
+                onExtractionsChange={setResponseExtractions}
                 onTabChange={setRequestTab}
                 onSend={handleSend}
                 onSaved={(saved) => {
                   setActiveRequest(saved)
+                  setResponseExtractions(saved.responseExtractions ?? [])
                   setSavedAuth(auth)
                   clearDraft(saved.id)
                   if (activeDraftId) {

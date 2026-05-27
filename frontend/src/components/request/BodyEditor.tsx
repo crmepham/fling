@@ -42,7 +42,7 @@ export function BodyEditor({ body, bodyType, onBodyChange, onBodyTypeChange }: P
             key={type}
             onClick={() => onBodyTypeChange(type)}
             className={cn(
-              'px-2.5 py-1 text-xs rounded font-medium transition-colors',
+              'px-2.5 py-1 text-xs rounded font-medium transition-colors cursor-pointer',
               bodyType === type
                 ? 'bg-accent text-white'
                 : 'text-muted hover:text-text hover:bg-overlay',
@@ -59,7 +59,7 @@ export function BodyEditor({ body, bodyType, onBodyChange, onBodyTypeChange }: P
             title="Prettify JSON"
             className={cn(
               'ml-auto flex items-center gap-1.5 px-2.5 py-1 text-xs rounded font-medium transition-colors',
-              'text-muted hover:text-text hover:bg-overlay',
+              'text-muted hover:text-text hover:bg-overlay cursor-pointer',
               'disabled:opacity-30 disabled:cursor-not-allowed',
             )}
           >

@@ -6,6 +6,7 @@ import com.fling.dto.request.MoveRequestBody;
 import com.fling.dto.request.SavedRequestResponse;
 import com.fling.entity.KeyValueEnabled;
 import com.fling.entity.RequestCollection;
+import com.fling.entity.ResponseExtraction;
 import com.fling.entity.RequestHistory;
 import com.fling.entity.SavedRequest;
 import com.fling.entity.User;
@@ -109,6 +110,7 @@ public class SavedRequestService {
         copy.setBody(original.getBody());
         copy.setBodyType(original.getBodyType());
         copy.setAuth(original.getAuth());
+        copy.setResponseExtractions(original.getResponseExtractions());
         return SavedRequestResponse.of(requestRepository.save(copy));
     }
 
@@ -142,6 +144,8 @@ public class SavedRequestService {
         target.setBody(req.body());
         target.setBodyType(req.bodyType());
         target.setAuth(req.auth());
+        var responseExtractions = req.responseExtractions() != null ? req.responseExtractions() : List.<ResponseExtraction>of();
+        target.setResponseExtractions(responseExtractions);
     }
 
     private SavedRequest findOrThrow(User user, UUID id) {

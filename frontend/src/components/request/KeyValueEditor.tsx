@@ -115,7 +115,7 @@ export function KeyValueEditor({ rows, onChange, keyPlaceholder = 'Key', valuePl
               {/* Delete */}
               <button
                 onClick={() => removeRow(row.id)}
-                className="mt-0.5 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-overlay text-subtle hover:text-text transition-all"
+                className="mt-0.5 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-overlay text-subtle hover:text-text transition-all cursor-pointer"
               >
                 <Trash2 size={12} />
               </button>
@@ -128,7 +128,7 @@ export function KeyValueEditor({ rows, onChange, keyPlaceholder = 'Key', valuePl
       <div className="p-2 border-t border-border">
         <button
           onClick={addRow}
-          className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted hover:text-text rounded hover:bg-overlay transition-colors"
+          className="flex items-center gap-1.5 h-7 px-3 rounded text-xs text-subtle hover:text-text hover:bg-overlay border border-border transition-colors cursor-pointer"
         >
           <Plus size={12} />
           Add row

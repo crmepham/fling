@@ -4,6 +4,7 @@ import com.fling.entity.AuthConfig;
 import com.fling.entity.BodyType;
 import com.fling.entity.KeyValueEnabled;
 import com.fling.entity.RequestHistory;
+import com.fling.entity.ResponseExtraction;
 import com.fling.entity.SavedRequest;
 
 import java.time.OffsetDateTime;
@@ -22,6 +23,7 @@ public record SavedRequestResponse(
         String body,
         BodyType bodyType,
         AuthConfig auth,
+        List<ResponseExtraction> responseExtractions,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
         LatestHistory latestHistory
@@ -65,6 +67,7 @@ public record SavedRequestResponse(
                 r.getBody(),
                 r.getBodyType(),
                 r.getAuth(),
+                r.getResponseExtractions(),
                 r.getCreatedAt(),
                 r.getUpdatedAt(),
                 latestHistory != null ? LatestHistory.of(latestHistory) : null

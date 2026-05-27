@@ -3,7 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Bookmark, Loader2, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useCollections, useRequests, useSaveRequest, useUpdateRequest } from '../../hooks/useCollections'
-import type { HttpMethod, KeyValue, SavedRequest, AuthConfig } from '../../types/api'
+import type { HttpMethod, KeyValue, SavedRequest, AuthConfig, ResponseExtraction } from '../../types/api'
 
 interface Props {
   method: HttpMethod
@@ -13,12 +13,13 @@ interface Props {
   body: string
   bodyType: 'NONE' | 'JSON' | 'FORM' | 'TEXT'
   auth: AuthConfig
+  responseExtractions: ResponseExtraction[]
   activeRequest: SavedRequest | null
   isDirty: boolean
   onSaved: (saved: SavedRequest) => void
 }
 
-export function SaveRequestDialog({ method, url, params, headers, body, bodyType, auth, activeRequest, isDirty, onSaved }: Props) {
+export function SaveRequestDialog({ method, url, params, headers, body, bodyType, auth, responseExtractions, activeRequest, isDirty, onSaved }: Props) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [collectionId, setCollectionId] = useState('')
@@ -47,6 +48,7 @@ export function SaveRequestDialog({ method, url, params, headers, body, bodyType
               body: body || undefined,
               bodyType,
               auth: auth.type === 'none' && !auth.username && !auth.password ? null : auth,
+              responseExtractions,
             },
             { onSuccess: (saved) => onSaved(saved) },
           )
@@ -102,6 +104,7 @@ export function SaveRequestDialog({ method, url, params, headers, body, bodyType
       body: body || undefined,
       bodyType,
       auth: auth.type === 'none' && !auth.username && !auth.password ? null : auth,
+      responseExtractions,
     }
 
     const onError = () => setSubmitError('Failed to save request. Please try again.')

@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Search, ChevronRight, FolderOpen, Folder, FileCode2, Plus, X, Loader2, Trash2, Play, Copy, GripVertical, Settings2, Pin, PinOff } from 'lucide-react'
+import { Search, ChevronRight, FolderOpen, Folder, FileCode2, Plus, X, Loader2, Trash2, Play, Copy, GripVertical, Settings2, Pin, PinOff, Download, Upload } from 'lucide-react'
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -289,6 +289,7 @@ function CollectionItem({
   const [open, setOpen] = useState(true)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const { data: requests = [] } = useRequests(collection.id)
   const { mutate: deleteCollection } = useDeleteCollection()
   const { mutate: deleteRequest, isPending: isDeletingRequest } = useDeleteRequest(collection.id)
@@ -305,6 +306,43 @@ function CollectionItem({
 
   // All hooks must be called before any conditional return
   if (q && !collectionMatches && matchingRequests.length === 0) return null
+
+  async function handleExport() {
+    setIsExporting(true)
+    try {
+      const result = await api.listRequests(collection.id)
+      const payload = {
+        flingVersion: '1',
+        exportedAt: new Date().toISOString(),
+        collection: {
+          name: collection.name,
+          description: collection.description,
+          auth: collection.auth ?? null,
+          requests: result.data.map((r) => ({
+            name: r.name,
+            method: r.method,
+            url: r.url,
+            queryParams: r.queryParams,
+            headers: r.headers,
+            body: r.body ?? null,
+            bodyType: r.bodyType,
+            auth: r.auth ?? null,
+          })),
+        },
+      }
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${collection.name}.fling.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast('Failed to export collection. Please try again.')
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   async function handleConfirmDelete() {
     setIsDeleting(true)
@@ -382,6 +420,20 @@ function CollectionItem({
             )}
           </button>
         </CollectionAuthModal>
+
+        <button
+          onClick={handleExport}
+          disabled={isExporting}
+          title="Export collection"
+          className={cn(
+            'p-1.5 rounded transition-all shrink-0',
+            'opacity-0 group-hover:opacity-100',
+            'text-subtle hover:text-text hover:bg-overlay cursor-pointer',
+            'disabled:opacity-30 disabled:cursor-not-allowed',
+          )}
+        >
+          {isExporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+        </button>
 
         <button
           onClick={() => setConfirmOpen(true)}
@@ -546,6 +598,8 @@ interface SidebarProps {
 export function Sidebar({ activeRequestId, activeDraftId, isDirty, newDrafts = [], envVariables, onRequestSelect, onRequestSend, onHistorySelect, onDraftSelect, onDraftDiscard }: SidebarProps) {
   const [view, setView] = useState<'collections' | 'history'>('collections')
   const [search, setSearch] = useState('')
+  const [isImporting, setIsImporting] = useState(false)
+  const importInputRef = useRef<HTMLInputElement>(null)
   const toast = useToast()
   const { data: collections = [], isLoading, isError } = useCollections()
   const { mutate: reorderCollections } = useReorderCollections()
@@ -553,6 +607,113 @@ export function Sidebar({ activeRequestId, activeDraftId, isDirty, newDrafts = [
   const { mutate: moveRequest } = useMoveRequest()
   const { mutate: pinCollection } = usePinCollection()
   const queryClient = useQueryClient()
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!importInputRef.current) return
+    importInputRef.current.value = ''
+    if (!file) return
+
+    setIsImporting(true)
+    try {
+      const text = await file.text()
+      let data: unknown
+      try {
+        data = JSON.parse(text)
+      } catch {
+        toast('Invalid file — could not parse JSON.')
+        return
+      }
+
+      if (typeof data !== 'object' || data === null) {
+        toast('Invalid collection export file.')
+        return
+      }
+      const root = data as Record<string, unknown>
+      if ('environment' in root) {
+        toast('This looks like an environment export. Please use the import option in the Environments dialog.')
+        return
+      }
+      if (
+        !('collection' in root) ||
+        typeof root.collection !== 'object' ||
+        root.collection === null
+      ) {
+        toast('Invalid collection export file.')
+        return
+      }
+
+      const col = (data as Record<string, unknown>).collection as Record<string, unknown>
+
+      if (typeof col.name !== 'string' || !col.name.trim()) {
+        toast('Invalid export file: missing collection name.')
+        return
+      }
+      if (!Array.isArray(col.requests)) {
+        toast('Invalid export file: missing requests array.')
+        return
+      }
+
+      const { name, description, auth, requests } = col as {
+        name: string
+        description?: string
+        auth?: unknown
+        requests: unknown[]
+      }
+
+      for (let i = 0; i < requests.length; i++) {
+        const r = requests[i] as Record<string, unknown>
+        if (typeof r.name !== 'string' || !r.name.trim()) {
+          toast(`Invalid export file: request ${i + 1} is missing a name.`)
+          return
+        }
+        if (typeof r.method !== 'string' || !r.method.trim()) {
+          toast(`Invalid export file: request "${r.name}" is missing a method.`)
+          return
+        }
+        if (typeof r.url !== 'string' || !r.url.trim()) {
+          toast(`Invalid export file: request "${r.name}" is missing a URL.`)
+          return
+        }
+        const urlStr = (r.url as string).trim()
+        if (!/^https?:\/\/.+/i.test(urlStr) && !urlStr.startsWith('{{')) {
+          toast(`Invalid export file: request "${r.name as string}" has an invalid URL.`)
+          return
+        }
+      }
+
+      if (collections.some((c) => c.name.toLowerCase() === name.trim().toLowerCase())) {
+        toast(`A collection named "${name}" already exists.`)
+        return
+      }
+
+      const created = await api.createCollection(name.trim(), typeof description === 'string' ? description : '')
+      if (auth && typeof auth === 'object') {
+        await api.updateCollectionAuth(created.id, auth as never)
+      }
+      for (const req of requests) {
+        const r = req as Record<string, unknown>
+        await api.createRequest({
+          collectionId: created.id,
+          name: r.name as string,
+          method: r.method as string,
+          url: r.url as string,
+          queryParams: Array.isArray(r.queryParams) ? r.queryParams : [],
+          headers: Array.isArray(r.headers) ? r.headers : [],
+          body: typeof r.body === 'string' ? r.body : undefined,
+          bodyType: typeof r.bodyType === 'string' ? r.bodyType : 'NONE',
+          auth: r.auth && typeof r.auth === 'object' ? r.auth as never : null,
+        })
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['collections'] })
+      toast(`Imported "${name}" with ${requests.length} request${requests.length !== 1 ? 's' : ''}.`, 'success')
+    } catch {
+      toast('Failed to import collection. Please try again.')
+    } finally {
+      setIsImporting(false)
+    }
+  }
 
   const pinnedCollections = collections.filter((c) => c.pinned)
   const unpinnedCollections = collections.filter((c) => !c.pinned)
@@ -648,7 +809,7 @@ export function Sidebar({ activeRequestId, activeDraftId, isDirty, newDrafts = [
             key={v}
             onClick={() => setView(v)}
             className={cn(
-              'flex-1 py-2 text-[10px] font-semibold uppercase tracking-widest transition-colors',
+              'flex-1 py-2 text-[10px] font-semibold uppercase tracking-widest transition-colors cursor-pointer',
               view === v
                 ? 'text-text border-b-2 border-accent -mb-px'
                 : 'text-subtle hover:text-muted',
@@ -724,11 +885,28 @@ export function Sidebar({ activeRequestId, activeDraftId, isDirty, newDrafts = [
         {/* Collections header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
           <span className="text-[10px] font-semibold text-subtle uppercase tracking-widest">Collections</span>
-          <CreateCollectionDialog>
-            <button className="p-0.5 rounded hover:bg-overlay text-subtle hover:text-text transition-colors" title="New collection">
-              <Plus size={12} />
+          <div className="flex items-center gap-1">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".json"
+              className="hidden"
+              onChange={handleImport}
+            />
+            <button
+              onClick={() => importInputRef.current?.click()}
+              disabled={isImporting}
+              title="Import collection"
+              className="p-0.5 rounded hover:bg-overlay text-subtle hover:text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {isImporting ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
             </button>
-          </CreateCollectionDialog>
+            <CreateCollectionDialog>
+              <button className="p-0.5 rounded hover:bg-overlay text-subtle hover:text-text transition-colors" title="New collection">
+                <Plus size={12} />
+              </button>
+            </CreateCollectionDialog>
+          </div>
         </div>
 
         {/* List */}

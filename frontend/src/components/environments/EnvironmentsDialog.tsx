@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Plus, Trash2, Eye, EyeOff, X, Save } from 'lucide-react'
+import { Plus, Trash2, Eye, EyeOff, X, Save, Download, Upload, Loader2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useToast } from '../../lib/toast'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useEnvironments,
   useEnvironmentDetail,
@@ -10,6 +11,7 @@ import {
   useDeleteEnvironment,
   useBulkUpdateVariables,
 } from '../../hooks/useEnvironments'
+import { api } from '../../lib/apiClient'
 import type { EnvironmentVariable } from '../../types/api'
 
 // ─── Row type used only in the editor (tracks per-row dirty state) ────────────
@@ -231,12 +233,127 @@ interface Props {
 }
 
 export function EnvironmentsDialog({ open, onOpenChange, selectedEnvId, onEnvChange }: Props) {
+  const queryClient = useQueryClient()
   const { data: environments = [], isLoading } = useEnvironments()
   const createEnv = useCreateEnvironment()
   const [activeEnvId, setActiveEnvId] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [isImporting, setIsImporting] = useState(false)
+  const importInputRef = useRef<HTMLInputElement>(null)
+  const toast = useToast()
+
+  async function handleExport(envId: string, envName: string) {
+    try {
+      const detail = await api.getEnvironment(envId)
+      const payload = {
+        flingVersion: '1',
+        exportedAt: new Date().toISOString(),
+        environment: {
+          name: detail.name,
+          variables: detail.variables.map((v) => ({
+            key: v.key,
+            value: v.value ?? '',
+            isSecret: v.isSecret,
+          })),
+        },
+      }
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${envName}.fling-env.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast('Failed to export environment. Please try again.')
+    }
+  }
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!importInputRef.current) return
+    importInputRef.current.value = ''
+    if (!file) return
+
+    setIsImporting(true)
+    try {
+      const text = await file.text()
+      let data: unknown
+      try {
+        data = JSON.parse(text)
+      } catch {
+        toast('Invalid file — could not parse JSON.')
+        return
+      }
+
+      if (typeof data !== 'object' || data === null) {
+        toast('Invalid environment export file.')
+        return
+      }
+      const root = data as Record<string, unknown>
+      if ('collection' in root) {
+        toast('This looks like a collection export. Please use the import option in the sidebar.')
+        return
+      }
+      if (
+        !('environment' in root) ||
+        typeof root.environment !== 'object' ||
+        root.environment === null
+      ) {
+        toast('Invalid environment export file.')
+        return
+      }
+
+      const env = (data as Record<string, unknown>).environment as Record<string, unknown>
+
+      if (typeof env.name !== 'string' || !env.name.trim()) {
+        toast('Invalid export file: missing environment name.')
+        return
+      }
+      if (!Array.isArray(env.variables)) {
+        toast('Invalid export file: missing variables array.')
+        return
+      }
+
+      const { name, variables } = env as { name: string; variables: unknown[] }
+
+      for (let i = 0; i < variables.length; i++) {
+        const v = variables[i] as Record<string, unknown>
+        if (typeof v.key !== 'string' || !v.key.trim()) {
+          toast(`Invalid export file: variable ${i + 1} is missing a key.`)
+          return
+        }
+      }
+
+      if (environments.some((e) => e.name.toLowerCase() === name.trim().toLowerCase())) {
+        toast(`An environment named "${name}" already exists.`)
+        return
+      }
+
+      const created = await createEnv.mutateAsync(name.trim())
+      await api.bulkUpdateVariables(
+        created.id,
+        variables.map((v) => {
+          const vr = v as Record<string, unknown>
+          return {
+            key: vr.key as string,
+            value: typeof vr.value === 'string' ? vr.value : '',
+            isSecret: vr.isSecret === true,
+          }
+        }),
+      )
+      await queryClient.invalidateQueries({ queryKey: ['environments'] })
+
+      setActiveEnvId(created.id)
+      toast(`Imported "${name}" with ${variables.length} variable${variables.length !== 1 ? 's' : ''}.`, 'success')
+    } catch {
+      toast('Failed to import environment. Please try again.')
+    } finally {
+      setIsImporting(false)
+    }
+  }
 
   const deleteEnv = useDeleteEnvironment((deletedId) => {
     const next = environments.find((e) => e.id !== deletedId)
@@ -302,9 +419,27 @@ export function EnvironmentsDialog({ open, onOpenChange, selectedEnvId, onEnvCha
           {/* Dialog header */}
           <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border">
             <Dialog.Title className="text-sm font-semibold text-text">Environments</Dialog.Title>
-            <Dialog.Close className="text-subtle hover:text-muted transition-colors">
-              <X size={14} />
-            </Dialog.Close>
+            <div className="flex items-center gap-2">
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={handleImport}
+              />
+              <button
+                onClick={() => importInputRef.current?.click()}
+                disabled={isImporting}
+                title="Import environment"
+                className="flex items-center gap-1.5 h-6 px-2 rounded text-[10px] border border-border text-subtle hover:text-text hover:bg-overlay transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isImporting ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
+                Import
+              </button>
+              <Dialog.Close className="text-subtle hover:text-muted transition-colors">
+                <X size={14} />
+              </Dialog.Close>
+            </div>
           </div>
 
           {/* Body: two-column layout */}
@@ -322,7 +457,7 @@ export function EnvironmentsDialog({ open, onOpenChange, selectedEnvId, onEnvCha
                   <div
                     key={env.id}
                     className={cn(
-                      'group flex items-center justify-between px-3 py-1.5 mx-1 rounded cursor-pointer',
+                      'group flex items-center justify-between px-3 py-1.5 mx-1 rounded cursor-pointer select-none',
                       'transition-colors',
                       activeEnvId === env.id
                         ? 'bg-accent/10 text-text'
@@ -334,15 +469,26 @@ export function EnvironmentsDialog({ open, onOpenChange, selectedEnvId, onEnvCha
                       <p className="text-xs font-medium truncate">{env.name}</p>
                       <p className="text-[10px] text-subtle">{env.variableCount} variable{env.variableCount !== 1 ? 's' : ''}</p>
                     </div>
-                    {environments.length > 1 && (
+                    <div className="flex items-center shrink-0 ml-1 opacity-0 group-hover:opacity-100 transition-all">
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(env.id) }}
-                        className="shrink-0 ml-1 opacity-0 group-hover:opacity-100 text-subtle hover:text-red-400 transition-all"
+                        onClick={(e) => { e.stopPropagation(); handleExport(env.id, env.name) }}
+                        title="Export environment"
+                        className="text-subtle hover:text-text p-0.5 transition-colors"
                       >
-                        <Trash2 size={11} />
+                        <Download size={11} />
                       </button>
-                    )}
+                      {environments.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(env.id) }}
+                          title="Delete environment"
+                          className="text-subtle hover:text-red-400 p-0.5 transition-colors"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -391,7 +537,7 @@ export function EnvironmentsDialog({ open, onOpenChange, selectedEnvId, onEnvCha
                     <button
                       onClick={() => onEnvChange(activeEnvId === selectedEnvId ? 'none' : activeEnvId)}
                       className={cn(
-                        'h-6 px-2.5 rounded text-[10px] font-medium border transition-colors',
+                        'h-6 px-2.5 rounded text-[10px] font-medium border transition-colors cursor-pointer',
                         activeEnvId === selectedEnvId
                           ? 'border-accent bg-accent/10 text-accent'
                           : 'border-accent bg-accent text-white hover:bg-accent-dim',

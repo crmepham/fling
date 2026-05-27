@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/apiClient'
-import type { AuthConfig } from '../types/api'
+import type { AuthConfig, ResponseExtraction } from '../types/api'
 
 export function useCollections() {
   return useQuery({
@@ -74,7 +74,7 @@ export function useRequests(collectionId: string) {
 export function useUpdateRequest() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; collectionId: string; name: string; method: string; url: string; queryParams: Array<{ key: string; value: string; enabled: boolean }>; headers: Array<{ key: string; value: string; enabled: boolean }>; body?: string; bodyType: string; auth?: AuthConfig | null }) =>
+    mutationFn: ({ id, ...body }: { id: string; collectionId: string; name: string; method: string; url: string; queryParams: Array<{ key: string; value: string; enabled: boolean }>; headers: Array<{ key: string; value: string; enabled: boolean }>; body?: string; bodyType: string; auth?: AuthConfig | null; responseExtractions?: ResponseExtraction[] }) =>
       api.updateRequest(id, body),
     onSuccess: () => queryClient.refetchQueries({ queryKey: ['requests'] }),
   })

@@ -3,6 +3,7 @@ package com.fling.dto.request;
 import com.fling.entity.AuthConfig;
 import com.fling.entity.BodyType;
 import com.fling.entity.KeyValueEnabled;
+import com.fling.entity.ResponseExtraction;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -19,5 +20,6 @@ public record CreateSavedRequestRequest(
         List<KeyValueEnabled> headers,
         String body,
         @NotNull BodyType bodyType,
-        AuthConfig auth
+        AuthConfig auth,
+        List<ResponseExtraction> responseExtractions
 ) {}

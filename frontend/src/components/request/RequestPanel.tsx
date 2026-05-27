@@ -7,17 +7,19 @@ import { MethodSelector } from './MethodSelector'
 import { KeyValueEditor } from './KeyValueEditor'
 import { BodyEditor } from './BodyEditor'
 import { AuthPanel } from './AuthPanel'
+import { ExtractionPanel } from './ExtractionPanel'
 import { SaveRequestDialog } from './SaveRequestDialog'
 import { parseSegments, hasVariables, resolveVars } from '../../lib/variables'
-import type { HttpMethod, KeyValue, SavedRequest, AuthConfig } from '../../types/api'
+import type { HttpMethod, KeyValue, SavedRequest, AuthConfig, ResponseExtraction } from '../../types/api'
 
-type RequestTab = 'params' | 'headers' | 'body' | 'auth'
+type RequestTab = 'params' | 'headers' | 'body' | 'auth' | 'extract'
 
 const ALL_TABS: Array<{ id: RequestTab; label: string; hideFor?: HttpMethod[] }> = [
   { id: 'params',  label: 'Params' },
   { id: 'headers', label: 'Headers' },
   { id: 'body',    label: 'Body', hideFor: ['GET', 'DELETE'] },
   { id: 'auth',    label: 'Auth' },
+  { id: 'extract', label: 'Extract' },
 ]
 
 interface Props {
@@ -34,6 +36,8 @@ interface Props {
   activeRequest: SavedRequest | null
   isDirty: boolean
   envVariables: Record<string, string>
+  hasActiveEnv: boolean
+  responseExtractions: ResponseExtraction[]
   onMethodChange: (m: HttpMethod) => void
   onUrlChange: (url: string) => void
   onParamsChange: (rows: KeyValue[]) => void
@@ -41,6 +45,7 @@ interface Props {
   onBodyChange: (body: string) => void
   onBodyTypeChange: (type: 'NONE' | 'JSON' | 'FORM' | 'TEXT') => void
   onAuthChange: (auth: AuthConfig) => void
+  onExtractionsChange: (extractions: ResponseExtraction[]) => void
   onTabChange: (tab: RequestTab) => void
   onSend: () => void
   onSaved: (saved: SavedRequest) => void
@@ -70,9 +75,10 @@ function isValidUrl(url: string, vars: Record<string, string> = {}): boolean {
 }
 
 export function RequestPanel({
-  method, url, params, headers, body, bodyType, auth, collectionAuth, activeTab, activeRequest, isDirty, envVariables,
+  method, url, params, headers, body, bodyType, auth, collectionAuth, activeTab, activeRequest, isDirty,
+  envVariables, hasActiveEnv, responseExtractions,
   onMethodChange, onUrlChange, onParamsChange, onHeadersChange,
-  onBodyChange, onBodyTypeChange, onAuthChange, onTabChange, onSend, onSaved,
+  onBodyChange, onBodyTypeChange, onAuthChange, onExtractionsChange, onTabChange, onSend, onSaved,
 }: Props) {
   const tabs = ALL_TABS.filter((t) => !t.hideFor?.includes(method))
   const effectiveTab = tabs.some((t) => t.id === activeTab) ? activeTab : 'params'
@@ -252,6 +258,7 @@ export function RequestPanel({
           body={body}
           bodyType={bodyType}
           auth={auth}
+          responseExtractions={responseExtractions}
           activeRequest={activeRequest}
           isDirty={isDirty}
           onSaved={onSaved}
@@ -291,7 +298,7 @@ export function RequestPanel({
               key={tab.id}
               value={tab.id}
               className={cn(
-                'px-3 py-2.5 text-xs font-medium transition-colors relative select-none',
+                'px-3 py-2.5 text-xs font-medium transition-colors relative select-none cursor-pointer',
                 'text-subtle hover:text-muted',
                 'data-[state=active]:text-text',
                 'after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px',
@@ -302,6 +309,9 @@ export function RequestPanel({
             >
               {tab.label}
               {tab.id === 'auth' && auth.type !== 'none' && (
+                <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-accent align-middle -mt-px" />
+              )}
+              {tab.id === 'extract' && responseExtractions.some((r) => r.path.trim() && r.variableKey.trim()) && (
                 <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-accent align-middle -mt-px" />
               )}
             </Tabs.Trigger>
@@ -353,6 +363,14 @@ export function RequestPanel({
             envVariables={envVariables}
             hasCollection={!!activeRequest?.collectionId}
             collectionAuth={collectionAuth}
+          />
+        </Tabs.Content>
+
+        <Tabs.Content value="extract" className="flex-1 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col">
+          <ExtractionPanel
+            extractions={responseExtractions}
+            onChange={onExtractionsChange}
+            hasActiveEnv={hasActiveEnv}
           />
         </Tabs.Content>
       </Tabs.Root>

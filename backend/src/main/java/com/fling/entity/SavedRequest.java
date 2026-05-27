@@ -58,6 +58,10 @@ public class SavedRequest {
     @Column(columnDefinition = "jsonb")
     private AuthConfig auth;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "response_extractions", columnDefinition = "jsonb", nullable = false)
+    private List<ResponseExtraction> responseExtractions = new ArrayList<>();
+
     @Column(name = "sort_order", nullable = false)
     private int sortOrder = 0;
 
