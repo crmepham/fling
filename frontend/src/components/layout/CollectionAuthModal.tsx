@@ -50,7 +50,7 @@ export function CollectionAuthModal({ collection, envVariables, children }: Prop
         )}>
           <div className="flex items-center justify-between mb-1">
             <Dialog.Title className="text-sm font-semibold text-text">Collection auth</Dialog.Title>
-            <Dialog.Close className="p-1 rounded hover:bg-overlay text-subtle hover:text-text transition-colors">
+            <Dialog.Close className="p-1 rounded hover:bg-overlay text-subtle hover:text-text transition-colors cursor-pointer">
               <X size={14} />
             </Dialog.Close>
           </div>
@@ -144,7 +144,7 @@ export function CollectionAuthModal({ collection, envVariables, children }: Prop
           </div>
 
           <div className="flex justify-end gap-2">
-            <Dialog.Close className="px-3 py-1.5 text-xs rounded text-muted hover:text-text hover:bg-overlay transition-colors">
+            <Dialog.Close className="px-3 py-1.5 text-xs rounded text-muted hover:text-text hover:bg-overlay transition-colors cursor-pointer">
               Cancel
             </Dialog.Close>
             <button
@@ -152,7 +152,7 @@ export function CollectionAuthModal({ collection, envVariables, children }: Prop
               disabled={isPending}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded font-medium',
-                'bg-accent text-white hover:bg-accent-dim transition-colors',
+                'bg-accent text-white hover:bg-accent-dim transition-colors cursor-pointer',
                 'disabled:opacity-40 disabled:cursor-not-allowed',
               )}
             >

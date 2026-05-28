@@ -94,7 +94,7 @@ function CreateCollectionDialog({ children }: { children: React.ReactNode }) {
         )}>
           <div className="flex items-center justify-between mb-4">
             <Dialog.Title className="text-sm font-semibold text-text">New collection</Dialog.Title>
-            <Dialog.Close className="p-1 rounded hover:bg-overlay text-subtle hover:text-text transition-colors">
+            <Dialog.Close className="p-1 rounded hover:bg-overlay text-subtle hover:text-text transition-colors cursor-pointer">
               <X size={14} />
             </Dialog.Close>
           </div>
@@ -119,7 +119,7 @@ function CreateCollectionDialog({ children }: { children: React.ReactNode }) {
               <p className="text-xs text-red-400">{submitError}</p>
             )}
             <div className="flex justify-end gap-2 pt-1">
-              <Dialog.Close className="px-3 py-1.5 text-xs rounded text-muted hover:text-text hover:bg-overlay transition-colors">
+              <Dialog.Close className="px-3 py-1.5 text-xs rounded text-muted hover:text-text hover:bg-overlay transition-colors cursor-pointer">
                 Cancel
               </Dialog.Close>
               <button
@@ -127,7 +127,7 @@ function CreateCollectionDialog({ children }: { children: React.ReactNode }) {
                 disabled={!name.trim() || isDuplicate || isPending}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded font-medium',
-                  'bg-accent text-white hover:bg-accent-dim transition-colors',
+                  'bg-accent text-white hover:bg-accent-dim transition-colors cursor-pointer',
                   'disabled:opacity-40 disabled:cursor-not-allowed',
                 )}
               >
@@ -189,7 +189,7 @@ function SortableRequestItem({
         onClick={() => onRequestSelect(req)}
         title={req.name}
         className={cn(
-          'flex items-center gap-2 flex-1 min-w-0 px-3 py-1.5 pl-8 text-xs transition-colors',
+          'flex items-center gap-2 flex-1 min-w-0 px-3 py-1.5 pl-8 text-xs transition-colors cursor-pointer',
           isActive ? 'text-text' : 'text-muted group-hover:text-text',
         )}
       >
@@ -363,7 +363,7 @@ function CollectionItem({
     <Collapsible.Root open={effectiveOpen} onOpenChange={setOpen}>
       <div className="flex items-center group rounded-sm hover:bg-overlay transition-colors">
         <Collapsible.Trigger asChild>
-          <button className="flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1.5 text-xs font-medium text-muted group-hover:text-text transition-colors">
+          <button className="flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1.5 text-xs font-medium text-muted group-hover:text-text transition-colors cursor-pointer">
             <ChevronRight
               size={12}
               className={cn('text-subtle transition-transform duration-150 shrink-0', open && 'rotate-90')}
@@ -459,7 +459,7 @@ function CollectionItem({
             )}>
               <div className="flex items-center justify-between mb-3">
                 <Dialog.Title className="text-sm font-semibold text-text">Delete collection</Dialog.Title>
-                <Dialog.Close className="p-1 rounded hover:bg-overlay text-subtle hover:text-text transition-colors">
+                <Dialog.Close className="p-1 rounded hover:bg-overlay text-subtle hover:text-text transition-colors cursor-pointer">
                   <X size={14} />
                 </Dialog.Close>
               </div>
@@ -472,7 +472,7 @@ function CollectionItem({
                 }
               </Dialog.Description>
               <div className="flex justify-end gap-2">
-                <Dialog.Close className="px-3 py-1.5 text-xs rounded text-muted hover:text-text hover:bg-overlay transition-colors">
+                <Dialog.Close className="px-3 py-1.5 text-xs rounded text-muted hover:text-text hover:bg-overlay transition-colors cursor-pointer">
                   {isLast ? 'OK' : 'Cancel'}
                 </Dialog.Close>
                 {!isLast && (
@@ -481,7 +481,7 @@ function CollectionItem({
                     disabled={isDeleting}
                     className={cn(
                       'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded font-medium',
-                      'bg-red-600 text-white hover:bg-red-700 transition-colors',
+                      'bg-red-600 text-white hover:bg-red-700 transition-colors cursor-pointer',
                       'disabled:opacity-40 disabled:cursor-not-allowed',
                     )}
                   >
@@ -897,12 +897,12 @@ export function Sidebar({ activeRequestId, activeDraftId, isDirty, newDrafts = [
               onClick={() => importInputRef.current?.click()}
               disabled={isImporting}
               title="Import collection"
-              className="p-0.5 rounded hover:bg-overlay text-subtle hover:text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="p-0.5 rounded hover:bg-overlay text-subtle hover:text-text transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {isImporting ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
             </button>
             <CreateCollectionDialog>
-              <button className="p-0.5 rounded hover:bg-overlay text-subtle hover:text-text transition-colors" title="New collection">
+              <button className="p-0.5 rounded hover:bg-overlay text-subtle hover:text-text transition-colors cursor-pointer" title="New collection">
                 <Plus size={12} />
               </button>
             </CreateCollectionDialog>

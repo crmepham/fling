@@ -136,7 +136,7 @@ export function SaveRequestDialog({ method, url, params, headers, body, bodyType
           title={isUpdate ? `Save changes to "${activeRequest.name}"` : 'Save request'}
           className={cn(
             'flex items-center gap-1.5 h-9 px-3 ml-1',
-            'border rounded text-xs transition-colors',
+            'border rounded text-xs transition-colors cursor-pointer',
             'disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none',
             isDirty
               ? 'border-accent bg-accent text-white hover:bg-accent-dim'
@@ -160,7 +160,7 @@ export function SaveRequestDialog({ method, url, params, headers, body, bodyType
             <Dialog.Title className="text-sm font-semibold text-text">
               {isUpdate ? 'Update request' : 'Save request'}
             </Dialog.Title>
-            <Dialog.Close className="p-1 rounded hover:bg-overlay text-subtle hover:text-text transition-colors">
+            <Dialog.Close className="p-1 rounded hover:bg-overlay text-subtle hover:text-text transition-colors cursor-pointer">
               <X size={14} />
             </Dialog.Close>
           </div>
@@ -226,7 +226,7 @@ export function SaveRequestDialog({ method, url, params, headers, body, bodyType
             <div className="flex justify-end gap-2 pt-1">
               <Dialog.Close className={cn(
                 'px-3 py-1.5 text-xs rounded text-muted',
-                'hover:text-text hover:bg-overlay transition-colors',
+                'hover:text-text hover:bg-overlay transition-colors cursor-pointer',
               )}>
                 Cancel
               </Dialog.Close>
@@ -235,7 +235,7 @@ export function SaveRequestDialog({ method, url, params, headers, body, bodyType
                 disabled={!name.trim() || !collectionId || isDuplicate || isPending}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded font-medium',
-                  'bg-accent text-white hover:bg-accent-dim transition-colors',
+                  'bg-accent text-white hover:bg-accent-dim transition-colors cursor-pointer',
                   'disabled:opacity-40 disabled:cursor-not-allowed',
                 )}
               >

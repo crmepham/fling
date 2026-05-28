@@ -54,7 +54,7 @@ function HistoryItem({
   return (
     <button
       onClick={() => onSelect(item.id)}
-      className="w-full flex flex-col gap-0.5 px-2 py-1.5 rounded-sm text-left hover:bg-overlay transition-colors group"
+      className="w-full flex flex-col gap-0.5 px-2 py-1.5 rounded-sm text-left hover:bg-overlay transition-colors group cursor-pointer"
     >
       <div className="flex items-center gap-1.5 min-w-0">
         <span className={cn('font-mono font-semibold shrink-0 text-[10px] leading-none', methodColor)}>
@@ -104,7 +104,7 @@ export function HistoryPanel({ onHistorySelect }: Props) {
             onClick={handleClear}
             disabled={isClearing}
             title="Clear history"
-            className="p-0.5 rounded hover:bg-overlay text-subtle hover:text-status-5xx transition-colors disabled:opacity-40"
+            className="p-0.5 rounded hover:bg-overlay text-subtle hover:text-status-5xx transition-colors disabled:opacity-40 cursor-pointer"
           >
             {isClearing ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
           </button>

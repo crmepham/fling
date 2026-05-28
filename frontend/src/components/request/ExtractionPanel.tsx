@@ -102,7 +102,7 @@ export function ExtractionPanel({ extractions, onChange, hasActiveEnv }: Props) 
           onClick={addRule}
           className={cn(
             'flex items-center gap-1.5 h-7 px-3 rounded text-xs',
-            'text-subtle hover:text-text hover:bg-overlay border border-border transition-colors',
+            'text-subtle hover:text-text hover:bg-overlay border border-border transition-colors cursor-pointer',
           )}
         >
           <Plus size={11} />

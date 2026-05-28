@@ -40,7 +40,7 @@ export function TopBar({ selectedEnv, onEnvChange, onNewRequest, onLogout }: Pro
               'flex items-center gap-1.5 h-6 px-2.5 rounded text-xs',
               'text-subtle hover:text-text hover:bg-overlay',
               'border border-border hover:border-border',
-              'transition-colors',
+              'transition-colors cursor-pointer',
             )}
           >
             <Plus size={11} />
@@ -109,7 +109,7 @@ export function TopBar({ selectedEnv, onEnvChange, onNewRequest, onLogout }: Pro
               className={cn(
                 'flex items-center justify-center w-6 h-6 rounded-r text-subtle',
                 'hover:text-text hover:bg-overlay border border-transparent hover:border-border',
-                'transition-colors',
+                'transition-colors cursor-pointer',
               )}
             >
               <Settings size={11} />
@@ -122,7 +122,7 @@ export function TopBar({ selectedEnv, onEnvChange, onNewRequest, onLogout }: Pro
             className={cn(
               'flex items-center justify-center w-6 h-6 rounded text-subtle',
               'hover:text-text hover:bg-overlay',
-              'transition-colors',
+              'transition-colors cursor-pointer',
             )}
           >
             <LogOut size={11} />

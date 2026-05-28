@@ -102,7 +102,7 @@ export function PreRequestPanel({
             <button
               onClick={() => onPreRequestChange(null)}
               title="Clear pre-request"
-              className="p-1 text-subtle hover:text-red-400 transition-colors"
+              className="p-1 text-subtle hover:text-red-400 transition-colors cursor-pointer"
             >
               <X size={13} />
             </button>
@@ -144,7 +144,7 @@ export function PreRequestPanel({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); removeCode(code) }}
-                  className="text-subtle hover:text-red-400 transition-colors"
+                  className="text-subtle hover:text-red-400 transition-colors cursor-pointer"
                 >
                   <X size={10} />
                 </button>

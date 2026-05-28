@@ -195,7 +195,7 @@ function VariableEditor({ envId }: VariableEditorProps) {
           onClick={addRow}
           className={cn(
             'flex items-center gap-1.5 h-7 px-3 rounded text-xs',
-            'text-subtle hover:text-text hover:bg-overlay border border-border transition-colors',
+            'text-subtle hover:text-text hover:bg-overlay border border-border transition-colors cursor-pointer',
           )}
         >
           <Plus size={11} />
@@ -209,7 +209,7 @@ function VariableEditor({ envId }: VariableEditorProps) {
             className={cn(
               'flex items-center gap-1.5 h-7 px-3 rounded text-xs font-medium transition-colors',
               hasPendingChanges
-                ? 'bg-accent text-white hover:bg-accent-dim'
+                ? 'bg-accent text-white hover:bg-accent-dim cursor-pointer'
                 : 'bg-overlay text-subtle cursor-default',
               'disabled:cursor-not-allowed',
             )}
@@ -431,12 +431,12 @@ export function EnvironmentsDialog({ open, onOpenChange, selectedEnvId, onEnvCha
                 onClick={() => importInputRef.current?.click()}
                 disabled={isImporting}
                 title="Import environment"
-                className="flex items-center gap-1.5 h-6 px-2 rounded text-[10px] border border-border text-subtle hover:text-text hover:bg-overlay transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 h-6 px-2 rounded text-[10px] border border-border text-subtle hover:text-text hover:bg-overlay transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {isImporting ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
                 Import
               </button>
-              <Dialog.Close className="text-subtle hover:text-muted transition-colors">
+              <Dialog.Close className="text-subtle hover:text-muted transition-colors cursor-pointer">
                 <X size={14} />
               </Dialog.Close>
             </div>
@@ -474,7 +474,7 @@ export function EnvironmentsDialog({ open, onOpenChange, selectedEnvId, onEnvCha
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleExport(env.id, env.name) }}
                         title="Export environment"
-                        className="text-subtle hover:text-text p-0.5 transition-colors"
+                        className="text-subtle hover:text-text p-0.5 transition-colors cursor-pointer"
                       >
                         <Download size={11} />
                       </button>
@@ -483,7 +483,7 @@ export function EnvironmentsDialog({ open, onOpenChange, selectedEnvId, onEnvCha
                           type="button"
                           onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(env.id) }}
                           title="Delete environment"
-                          className="text-subtle hover:text-red-400 p-0.5 transition-colors"
+                          className="text-subtle hover:text-red-400 p-0.5 transition-colors cursor-pointer"
                         >
                           <Trash2 size={11} />
                         </button>
@@ -512,7 +512,7 @@ export function EnvironmentsDialog({ open, onOpenChange, selectedEnvId, onEnvCha
                     disabled={!newName.trim() || createEnv.isPending}
                     className={cn(
                       'flex items-center justify-center gap-1 h-7 rounded text-xs font-medium',
-                      'bg-accent text-white hover:bg-accent-dim transition-colors',
+                      'bg-accent text-white hover:bg-accent-dim transition-colors cursor-pointer',
                       'disabled:opacity-40 disabled:cursor-not-allowed',
                     )}
                   >
@@ -563,14 +563,14 @@ export function EnvironmentsDialog({ open, onOpenChange, selectedEnvId, onEnvCha
                 <div className="flex gap-2 justify-end">
                   <button
                     onClick={() => setConfirmDeleteId(null)}
-                    className="h-7 px-3 rounded text-xs border border-border text-subtle hover:text-text hover:bg-overlay transition-colors"
+                    className="h-7 px-3 rounded text-xs border border-border text-subtle hover:text-text hover:bg-overlay transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={() => deleteEnv.mutate(confirmDeleteId)}
                     disabled={deleteEnv.isPending}
-                    className="h-7 px-3 rounded text-xs bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-40"
+                    className="h-7 px-3 rounded text-xs bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-40 cursor-pointer"
                   >
                     {deleteEnv.isPending ? 'Deleting…' : 'Delete'}
                   </button>

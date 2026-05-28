@@ -187,7 +187,7 @@ function CurlTab({ method, url, params, headers, body, bodyType, envVariables, a
           onClick={handleCopy}
           title="Copy to clipboard"
           className={cn(
-            'flex items-center gap-1.5 h-6 px-2 rounded text-[10px] transition-colors',
+            'flex items-center gap-1.5 h-6 px-2 rounded text-[10px] transition-colors cursor-pointer',
             copied
               ? 'text-green-400 bg-green-400/10'
               : 'text-subtle hover:text-text hover:bg-overlay',

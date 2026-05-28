@@ -241,7 +241,7 @@ export function RequestPanel({
             'text-xs font-semibold transition-colors',
             'focus:outline-none disabled:cursor-not-allowed',
             urlValid
-              ? 'bg-accent text-white hover:bg-accent-dim'
+              ? 'bg-accent text-white hover:bg-accent-dim cursor-pointer'
               : 'bg-overlay text-subtle',
           )}
         >
