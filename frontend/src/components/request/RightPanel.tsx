@@ -36,9 +36,13 @@ function buildCurl(
 
   // Resolve effective auth — inherit falls back to collection auth
   const effectiveAuth = auth?.type === 'inherit' ? collectionAuth : auth
-  if (effectiveAuth?.type === 'basic' && effectiveAuth.enabled && !hasManualAuth) {
-    const token = btoa(`${r(effectiveAuth.username)}:${r(effectiveAuth.password)}`)
-    lines.push(`  -H 'Authorization: Basic ${token}'`)
+  if (effectiveAuth?.enabled && !hasManualAuth) {
+    if (effectiveAuth.type === 'basic') {
+      const token = btoa(`${r(effectiveAuth.username)}:${r(effectiveAuth.password)}`)
+      lines.push(`  -H 'Authorization: Basic ${token}'`)
+    } else if (effectiveAuth.type === 'bearer' && effectiveAuth.token) {
+      lines.push(`  -H 'Authorization: Bearer ${r(effectiveAuth.token)}'`)
+    }
   }
 
   // Auto content-type for body (only if not already set)
