@@ -18,8 +18,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error('Unauthorized')
   }
   if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`${res.status} ${res.statusText}: ${text}`)
+    let message = `${res.status} ${res.statusText}`
+    try {
+      const body = await res.json()
+      if (body?.error?.message) message = body.error.message
+    } catch { /* use default */ }
+    throw new Error(message)
   }
   if (res.status === 204 || res.headers.get('content-length') === '0') {
     return undefined as T
@@ -85,6 +89,8 @@ export const api = {
     bodyType: string
     auth?: AuthConfig | null
     responseExtractions?: ResponseExtraction[]
+    preRequestId?: string | null
+    preRequestSuccessCodes?: number[]
   }) =>
     request<SavedRequest>('/requests', { method: 'POST', body: JSON.stringify(body) }),
 
@@ -99,6 +105,8 @@ export const api = {
     bodyType: string
     auth?: AuthConfig | null
     responseExtractions?: ResponseExtraction[]
+    preRequestId?: string | null
+    preRequestSuccessCodes?: number[]
   }) =>
     request<SavedRequest>(`/requests/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
 

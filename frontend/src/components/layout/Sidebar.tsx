@@ -517,7 +517,7 @@ function CollectionItem({
                     onError: () => toast('Failed to duplicate request. Please try again.'),
                   })}
                   onDeleteRequest={(id) => deleteRequest(id, {
-                    onError: () => toast('Failed to delete request. Please try again.'),
+                    onError: (err) => toast(err instanceof Error ? err.message : 'Failed to delete request. Please try again.'),
                   })}
                   isDeletingRequest={isDeletingRequest}
                 />

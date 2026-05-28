@@ -10,6 +10,7 @@ import com.fling.entity.ResponseExtraction;
 import com.fling.entity.RequestHistory;
 import com.fling.entity.SavedRequest;
 import com.fling.entity.User;
+import com.fling.exception.ConflictException;
 import com.fling.exception.ResourceNotFoundException;
 import com.fling.repository.RequestCollectionRepository;
 import com.fling.repository.RequestHistoryRepository;
@@ -93,7 +94,15 @@ public class SavedRequestService {
 
     @Transactional
     public void delete(User user, UUID id) {
-        requestRepository.delete(findOrThrow(user, id));
+        var target = findOrThrow(user, id);
+        var dependents = requestRepository.findByPreRequestIdAndUser(id, user);
+        if (!dependents.isEmpty()) {
+            var names = dependents.stream().map(SavedRequest::getName).toList();
+            throw new ConflictException(
+                "Cannot delete — this request is used as a pre-request by: " + String.join(", ", names)
+            );
+        }
+        requestRepository.delete(target);
     }
 
     @Transactional
@@ -111,6 +120,8 @@ public class SavedRequestService {
         copy.setBodyType(original.getBodyType());
         copy.setAuth(original.getAuth());
         copy.setResponseExtractions(original.getResponseExtractions());
+        copy.setPreRequestId(original.getPreRequestId());
+        copy.setPreRequestSuccessCodes(original.getPreRequestSuccessCodes());
         return SavedRequestResponse.of(requestRepository.save(copy));
     }
 
@@ -146,6 +157,10 @@ public class SavedRequestService {
         target.setAuth(req.auth());
         var responseExtractions = req.responseExtractions() != null ? req.responseExtractions() : List.<ResponseExtraction>of();
         target.setResponseExtractions(responseExtractions);
+        target.setPreRequestId(req.preRequestId());
+        var successCodes = req.preRequestSuccessCodes() != null && !req.preRequestSuccessCodes().isEmpty()
+                ? req.preRequestSuccessCodes() : List.of(200);
+        target.setPreRequestSuccessCodes(successCodes);
     }
 
     private SavedRequest findOrThrow(User user, UUID id) {

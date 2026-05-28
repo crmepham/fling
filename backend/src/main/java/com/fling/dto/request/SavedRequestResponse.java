@@ -24,6 +24,8 @@ public record SavedRequestResponse(
         BodyType bodyType,
         AuthConfig auth,
         List<ResponseExtraction> responseExtractions,
+        UUID preRequestId,
+        List<Integer> preRequestSuccessCodes,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
         LatestHistory latestHistory
@@ -68,6 +70,8 @@ public record SavedRequestResponse(
                 r.getBodyType(),
                 r.getAuth(),
                 r.getResponseExtractions(),
+                r.getPreRequestId(),
+                r.getPreRequestSuccessCodes(),
                 r.getCreatedAt(),
                 r.getUpdatedAt(),
                 latestHistory != null ? LatestHistory.of(latestHistory) : null

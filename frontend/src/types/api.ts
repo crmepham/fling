@@ -65,6 +65,8 @@ export interface SavedRequest {
   bodyType: 'NONE' | 'JSON' | 'FORM' | 'TEXT'
   auth?: AuthConfig | null
   responseExtractions?: ResponseExtraction[]
+  preRequestId?: string | null
+  preRequestSuccessCodes?: number[]
   createdAt: string
   updatedAt: string
   latestHistory?: {

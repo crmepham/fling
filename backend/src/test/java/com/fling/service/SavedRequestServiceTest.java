@@ -7,6 +7,7 @@ import com.fling.entity.RequestCollection;
 import com.fling.entity.RequestHistory;
 import com.fling.entity.SavedRequest;
 import com.fling.entity.User;
+import com.fling.exception.ConflictException;
 import com.fling.exception.ResourceNotFoundException;
 import com.fling.repository.RequestCollectionRepository;
 import com.fling.repository.RequestHistoryRepository;
@@ -67,6 +68,18 @@ class SavedRequestServiceTest {
         savedRequest.setBodyType(BodyType.NONE);
     }
 
+    // ── Helper to build a minimal CreateSavedRequestRequest ──────────────────
+
+    private CreateSavedRequestRequest minimalRequest(UUID collectionId) {
+        return new CreateSavedRequestRequest(
+                collectionId, "My Request", "GET",
+                "https://example.com", List.of(), List.of(),
+                null, BodyType.NONE, null, null, null, null
+        );
+    }
+
+    // ── get ───────────────────────────────────────────────────────────────────
+
     @Test
     void get_throwsNotFound_whenRequestDoesNotExist() {
         var id = UUID.randomUUID();
@@ -81,16 +94,7 @@ class SavedRequestServiceTest {
         var id = UUID.randomUUID();
         savedRequest.setId(id);
 
-        var history = new RequestHistory();
-        history.setId(UUID.randomUUID());
-        history.setMethod("GET");
-        history.setUrl("https://api.example.com/users");
-        history.setResponseStatus(200);
-        history.setDurationMs(55);
-        history.setSentAt(OffsetDateTime.now());
-        history.setRequest(savedRequest);
-        history.setUser(user);
-
+        var history = buildHistory(savedRequest, 200, 55);
         when(requestRepository.findByIdAndUser(id, user)).thenReturn(Optional.of(savedRequest));
         when(historyRepository.findFirstByUserAndRequestIdOrderBySentAtDesc(user, id))
                 .thenReturn(Optional.of(history));
@@ -115,17 +119,174 @@ class SavedRequestServiceTest {
         assertThat(result.latestHistory()).isNull();
     }
 
+    // ── create ────────────────────────────────────────────────────────────────
+
     @Test
     void create_throwsNotFound_whenCollectionDoesNotExist() {
         var collectionId = UUID.randomUUID();
         when(collectionRepository.findByIdAndUser(collectionId, user)).thenReturn(Optional.empty());
 
-        var req = new CreateSavedRequestRequest(collectionId, "My Request", "GET",
-                "https://example.com", List.of(), List.of(), null, BodyType.NONE, null);
-
-        assertThatThrownBy(() -> savedRequestService.create(user, req))
+        assertThatThrownBy(() -> savedRequestService.create(user, minimalRequest(collectionId)))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
+
+    @Test
+    void create_setsPreRequestId_whenProvided() {
+        var collectionId = UUID.randomUUID();
+        var preRequestId = UUID.randomUUID();
+        var req = new CreateSavedRequestRequest(
+                collectionId, "Login then fetch", "GET",
+                "https://example.com", List.of(), List.of(),
+                null, BodyType.NONE, null, null, preRequestId, List.of(200, 201)
+        );
+
+        when(collectionRepository.findByIdAndUser(collectionId, user)).thenReturn(Optional.of(collection));
+        when(requestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = savedRequestService.create(user, req);
+
+        assertThat(result.preRequestId()).isEqualTo(preRequestId);
+        assertThat(result.preRequestSuccessCodes()).containsExactly(200, 201);
+    }
+
+    @Test
+    void create_defaultsSuccessCodesToList200_whenSuccessCodesNull() {
+        var collectionId = UUID.randomUUID();
+        var req = new CreateSavedRequestRequest(
+                collectionId, "My Request", "GET",
+                "https://example.com", List.of(), List.of(),
+                null, BodyType.NONE, null, null, null, null
+        );
+
+        when(collectionRepository.findByIdAndUser(collectionId, user)).thenReturn(Optional.of(collection));
+        when(requestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = savedRequestService.create(user, req);
+
+        assertThat(result.preRequestSuccessCodes()).containsExactly(200);
+    }
+
+    @Test
+    void create_defaultsSuccessCodesToList200_whenSuccessCodesEmpty() {
+        var collectionId = UUID.randomUUID();
+        var req = new CreateSavedRequestRequest(
+                collectionId, "My Request", "GET",
+                "https://example.com", List.of(), List.of(),
+                null, BodyType.NONE, null, null, null, List.of()
+        );
+
+        when(collectionRepository.findByIdAndUser(collectionId, user)).thenReturn(Optional.of(collection));
+        when(requestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = savedRequestService.create(user, req);
+
+        assertThat(result.preRequestSuccessCodes()).containsExactly(200);
+    }
+
+    // ── update ────────────────────────────────────────────────────────────────
+
+    @Test
+    void update_updatesPreRequestIdAndSuccessCodes() {
+        var id = UUID.randomUUID();
+        var collectionId = UUID.randomUUID();
+        var preRequestId = UUID.randomUUID();
+        savedRequest.setId(id);
+
+        var req = new CreateSavedRequestRequest(
+                collectionId, "Updated", "POST",
+                "https://example.com/updated", List.of(), List.of(),
+                null, BodyType.NONE, null, null, preRequestId, List.of(201, 204)
+        );
+
+        when(requestRepository.findByIdAndUser(id, user)).thenReturn(Optional.of(savedRequest));
+        when(collectionRepository.findByIdAndUser(collectionId, user)).thenReturn(Optional.of(collection));
+        when(requestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = savedRequestService.update(user, id, req);
+
+        assertThat(result.preRequestId()).isEqualTo(preRequestId);
+        assertThat(result.preRequestSuccessCodes()).containsExactly(201, 204);
+    }
+
+    @Test
+    void update_clearsPreRequestId_whenSetToNull() {
+        var id = UUID.randomUUID();
+        var collectionId = UUID.randomUUID();
+        savedRequest.setId(id);
+        savedRequest.setPreRequestId(UUID.randomUUID());
+
+        var req = new CreateSavedRequestRequest(
+                collectionId, "Updated", "GET",
+                "https://example.com", List.of(), List.of(),
+                null, BodyType.NONE, null, null, null, null
+        );
+
+        when(requestRepository.findByIdAndUser(id, user)).thenReturn(Optional.of(savedRequest));
+        when(collectionRepository.findByIdAndUser(collectionId, user)).thenReturn(Optional.of(collection));
+        when(requestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = savedRequestService.update(user, id, req);
+
+        assertThat(result.preRequestId()).isNull();
+    }
+
+    // ── delete ────────────────────────────────────────────────────────────────
+
+    @Test
+    void delete_removesRequest_whenNoDependents() {
+        var id = UUID.randomUUID();
+        savedRequest.setId(id);
+        when(requestRepository.findByIdAndUser(id, user)).thenReturn(Optional.of(savedRequest));
+        when(requestRepository.findByPreRequestIdAndUser(id, user)).thenReturn(List.of());
+
+        savedRequestService.delete(user, id);
+
+        verify(requestRepository).delete(savedRequest);
+    }
+
+    @Test
+    void delete_throwsConflict_whenRequestIsUsedAsPreRequest() {
+        var id = UUID.randomUUID();
+        savedRequest.setId(id);
+
+        var dependent = new SavedRequest();
+        dependent.setName("Create Order");
+
+        when(requestRepository.findByIdAndUser(id, user)).thenReturn(Optional.of(savedRequest));
+        when(requestRepository.findByPreRequestIdAndUser(id, user)).thenReturn(List.of(dependent));
+
+        assertThatThrownBy(() -> savedRequestService.delete(user, id))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Create Order");
+    }
+
+    @Test
+    void delete_throwsConflict_listingAllDependentNames() {
+        var id = UUID.randomUUID();
+        savedRequest.setId(id);
+
+        var dep1 = new SavedRequest(); dep1.setName("Request A");
+        var dep2 = new SavedRequest(); dep2.setName("Request B");
+
+        when(requestRepository.findByIdAndUser(id, user)).thenReturn(Optional.of(savedRequest));
+        when(requestRepository.findByPreRequestIdAndUser(id, user)).thenReturn(List.of(dep1, dep2));
+
+        assertThatThrownBy(() -> savedRequestService.delete(user, id))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Request A")
+                .hasMessageContaining("Request B");
+    }
+
+    @Test
+    void delete_throwsNotFound_whenRequestDoesNotExist() {
+        var id = UUID.randomUUID();
+        when(requestRepository.findByIdAndUser(id, user)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> savedRequestService.delete(user, id))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ── duplicate ─────────────────────────────────────────────────────────────
 
     @Test
     void duplicate_copiesRequestWithCopySuffix() {
@@ -141,6 +302,39 @@ class SavedRequestServiceTest {
     }
 
     @Test
+    void duplicate_copiesPreRequestIdAndSuccessCodes() {
+        var id = UUID.randomUUID();
+        var preRequestId = UUID.randomUUID();
+        savedRequest.setId(id);
+        savedRequest.setPreRequestId(preRequestId);
+        savedRequest.setPreRequestSuccessCodes(List.of(200, 201));
+
+        when(requestRepository.findByIdAndUser(id, user)).thenReturn(Optional.of(savedRequest));
+        when(requestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = savedRequestService.duplicate(user, id);
+
+        assertThat(result.preRequestId()).isEqualTo(preRequestId);
+        assertThat(result.preRequestSuccessCodes()).containsExactly(200, 201);
+    }
+
+    @Test
+    void duplicate_copiesNullPreRequestId_whenOriginalHasNone() {
+        var id = UUID.randomUUID();
+        savedRequest.setId(id);
+        savedRequest.setPreRequestId(null);
+
+        when(requestRepository.findByIdAndUser(id, user)).thenReturn(Optional.of(savedRequest));
+        when(requestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = savedRequestService.duplicate(user, id);
+
+        assertThat(result.preRequestId()).isNull();
+    }
+
+    // ── move ──────────────────────────────────────────────────────────────────
+
+    @Test
     void move_setsCollectionToNull_whenCollectionIdIsNull() {
         var id = UUID.randomUUID();
         when(requestRepository.findByIdAndUser(id, user)).thenReturn(Optional.of(savedRequest));
@@ -151,15 +345,7 @@ class SavedRequestServiceTest {
         assertThat(result.collectionId()).isNull();
     }
 
-    @Test
-    void delete_removesRequest() {
-        var id = UUID.randomUUID();
-        when(requestRepository.findByIdAndUser(id, user)).thenReturn(Optional.of(savedRequest));
-
-        savedRequestService.delete(user, id);
-
-        verify(requestRepository).delete(savedRequest);
-    }
+    // ── listByCollection ──────────────────────────────────────────────────────
 
     @Test
     void listByCollection_returnsLatestHistoryAsNull_whenNoHistoryExists() {
@@ -181,16 +367,7 @@ class SavedRequestServiceTest {
         var requestId = UUID.randomUUID();
         savedRequest.setId(requestId);
 
-        var history = new RequestHistory();
-        history.setId(UUID.randomUUID());
-        history.setMethod("GET");
-        history.setUrl("https://api.example.com/users");
-        history.setResponseStatus(200);
-        history.setDurationMs(42);
-        history.setSentAt(OffsetDateTime.now());
-        history.setRequest(savedRequest);
-        history.setUser(user);
-
+        var history = buildHistory(savedRequest, 200, 42);
         when(collectionRepository.findByIdAndUser(collectionId, user)).thenReturn(Optional.of(collection));
         when(requestRepository.findAllByCollection(eq(collection), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(savedRequest)));
@@ -203,5 +380,20 @@ class SavedRequestServiceTest {
         assertThat(latestHistory).isNotNull();
         assertThat(latestHistory.responseStatus()).isEqualTo(200);
         assertThat(latestHistory.durationMs()).isEqualTo(42);
+    }
+
+    // ── helpers ───────────────────────────────────────────────────────────────
+
+    private RequestHistory buildHistory(SavedRequest request, int status, int durationMs) {
+        var history = new RequestHistory();
+        history.setId(UUID.randomUUID());
+        history.setMethod("GET");
+        history.setUrl("https://api.example.com/users");
+        history.setResponseStatus(status);
+        history.setDurationMs(durationMs);
+        history.setSentAt(OffsetDateTime.now());
+        history.setRequest(request);
+        history.setUser(user);
+        return history;
     }
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQueries } from '@tanstack/react-query'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { TopBar } from './components/layout/TopBar'
 import { Sidebar } from './components/layout/Sidebar'
@@ -61,6 +61,7 @@ function clearDraft(id: string) {
 }
 
 const LAST_REQUEST_KEY = 'fling:last-request'
+const LAST_ENV_KEY = 'fling:last-env'
 
 // ─── New-request draft helpers ────────────────────────────────────────────────
 
@@ -120,7 +121,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
   const [headers, setHeaders] = useState<KeyValue[]>([makeRow()])
   const [body, setBody] = useState('')
   const [bodyType, setBodyType] = useState<'NONE' | 'JSON' | 'FORM' | 'TEXT'>('NONE')
-  const [requestTab, setRequestTab] = useState<'params' | 'headers' | 'body' | 'auth' | 'extract'>('params')
+  const [requestTab, setRequestTab] = useState<'params' | 'headers' | 'body' | 'auth' | 'extract' | 'prereq'>('params')
 
   // ── Auth state ─────────────────────────────────────────────────────────────
   const defaultAuth: AuthConfig = { type: 'none', enabled: true, username: '', password: '', token: '' }
@@ -130,6 +131,8 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
   // ── Active saved request (set when loaded from sidebar) ───────────────────
   const [activeRequest, setActiveRequest] = useState<SavedRequest | null>(null)
   const [responseExtractions, setResponseExtractions] = useState<ResponseExtraction[]>([])
+  const [preRequestId, setPreRequestId] = useState<string | null>(null)
+  const [preRequestSuccessCodes, setPreRequestSuccessCodes] = useState<number[]>([200])
 
   const toast = useToast()
 
@@ -148,9 +151,30 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
   const [sentAt, setSentAt] = useState<Date | null>(null)
 
   // ── Environment state ──────────────────────────────────────────────────────
-  const [selectedEnv, setSelectedEnv] = useState('none')
+  const [selectedEnv, setSelectedEnv] = useState(() => localStorage.getItem(LAST_ENV_KEY) ?? 'none')
   const { data: environments = [] } = useEnvironments()
   const { data: collections = [] } = useCollections()
+
+  // Flat list of all requests across collections for the pre-request selector
+  const collectionRequestQueries = useQueries({
+    queries: collections.map((c) => ({
+      queryKey: ['requests', c.id] as const,
+      queryFn: () => api.listRequests(c.id),
+      staleTime: 30_000,
+    })),
+  })
+  const allRequests = useMemo(
+    () => collections.flatMap((c, i) =>
+      (collectionRequestQueries[i]?.data?.data ?? []).map((r) => ({
+        id: r.id,
+        name: r.name,
+        method: r.method,
+        collectionName: c.name,
+      }))
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [collections, ...collectionRequestQueries.map((q) => q.data)]
+  )
 
   // ── Dirty check — true when current editor state differs from the active saved request ──
   const isDirty = useMemo(() => {
@@ -168,17 +192,23 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
     if (activeHeaders.length !== currentHeaders.length) return true
     if (activeHeaders.some((h, i) => h.key !== currentHeaders[i]?.key || h.value !== currentHeaders[i]?.value || h.enabled !== currentHeaders[i]?.enabled)) return true
     if (auth.type !== savedAuth.type || auth.enabled !== savedAuth.enabled || auth.username !== savedAuth.username || auth.password !== savedAuth.password || (auth.token ?? '') !== (savedAuth.token ?? '')) return true
+    const savedExtractions = activeRequest.responseExtractions ?? []
+    if (responseExtractions.length !== savedExtractions.length) return true
+    if (responseExtractions.some((e, i) => e.source !== savedExtractions[i]?.source || e.path !== savedExtractions[i]?.path || e.variableKey !== savedExtractions[i]?.variableKey)) return true
+    if (preRequestId !== (activeRequest.preRequestId ?? null)) return true
+    const savedCodes = activeRequest.preRequestSuccessCodes ?? [200]
+    if (preRequestSuccessCodes.length !== savedCodes.length || preRequestSuccessCodes.some((c, i) => c !== savedCodes[i])) return true
     return false
-  }, [activeRequest, method, url, params, headers, body, bodyType, auth, savedAuth])
+  }, [activeRequest, method, url, params, headers, body, bodyType, auth, savedAuth, responseExtractions, preRequestId, preRequestSuccessCodes])
 
   // ── Persist draft to localStorage while dirty ─────────────────────────────
   useEffect(() => {
     if (!activeRequest || !isDirty) return
     const timer = setTimeout(() => {
-      saveDraft(activeRequest.id, { method, url, params, headers, body, bodyType, auth })
+      saveDraft(activeRequest.id, { method, url, params, headers, body, bodyType, auth, responseExtractions, preRequestId, preRequestSuccessCodes })
     }, 500)
     return () => clearTimeout(timer)
-  }, [activeRequest, isDirty, method, url, params, headers, body, bodyType, auth])
+  }, [activeRequest, isDirty, method, url, params, headers, body, bodyType, auth, responseExtractions, preRequestId, preRequestSuccessCodes])
 
   // ── Auto-save new draft data + update sidebar label ───────────────────────
   useEffect(() => {
@@ -212,12 +242,17 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
     [baseEnvVariables, envOverrides]
   )
 
-  // Auto-select the first environment on initial load
+  // Persist selected environment to localStorage
   useEffect(() => {
-    if (selectedEnv === 'none' && environments.length > 0) {
-      setSelectedEnv(environments[0].id)
-    }
-  }, [environments, selectedEnv])
+    localStorage.setItem(LAST_ENV_KEY, selectedEnv)
+  }, [selectedEnv])
+
+  // Once environments load, fall back to first if the stored ID is no longer valid
+  useEffect(() => {
+    if (environments.length === 0) return
+    if (selectedEnv !== 'none' && environments.some((e) => e.id === selectedEnv)) return
+    setSelectedEnv(environments[0].id)
+  }, [environments]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear overrides when environment changes or when server data updates (e.g. modal save)
   useEffect(() => {
@@ -237,6 +272,8 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
     setActiveDraftId(id)
     setActiveRequest(null)
     setResponseExtractions([])
+    setPreRequestId(null)
+    setPreRequestSuccessCodes([200])
     setMethod('GET')
     setUrl('https://')
     setParams([makeRow()])
@@ -295,6 +332,8 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
       setBodyType('NONE')
       setAuth(defaultAuth)
       setSavedAuth(defaultAuth)
+      setPreRequestId(null)
+      setPreRequestSuccessCodes([200])
       setResponse(null)
       setExecuteError(null)
     }
@@ -347,6 +386,8 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
     setActiveDraftId(null)
     setActiveRequest(req)
     setResponseExtractions(req.responseExtractions ?? [])
+    setPreRequestId(req.preRequestId ?? null)
+    setPreRequestSuccessCodes(req.preRequestSuccessCodes ?? [200])
     const storedAuth = req.auth ?? defaultAuth
     setSavedAuth(storedAuth)
 
@@ -359,6 +400,9 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
       setBody(draft.body)
       setBodyType(draft.bodyType)
       setAuth(draft.auth)
+      setResponseExtractions(draft.responseExtractions ?? req.responseExtractions ?? [])
+      setPreRequestId(draft.preRequestId ?? req.preRequestId ?? null)
+      setPreRequestSuccessCodes(draft.preRequestSuccessCodes ?? req.preRequestSuccessCodes ?? [200])
     } else {
       const bodyless = req.method === 'GET' || req.method === 'DELETE'
       setMethod(req.method)
@@ -580,24 +624,104 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
   }
 
   // ── Send handler ───────────────────────────────────────────────────────────
-  function buildAuthHeader(): { key: string; value: string; enabled: boolean } | null {
+  function buildAuthHeader(vars: Record<string, string> = envVariables): { key: string; value: string; enabled: boolean } | null {
     const effective = auth.type === 'inherit' ? collectionAuth : auth
     if (!effective || !effective.enabled) return null
     if (effective.type === 'basic') {
-      const username = resolveVars(effective.username, envVariables)
-      const password = resolveVars(effective.password, envVariables)
+      const username = resolveVars(effective.username, vars)
+      const password = resolveVars(effective.password, vars)
       return { key: 'Authorization', value: `Basic ${btoa(`${username}:${password}`)}`, enabled: true }
     }
     if (effective.type === 'bearer' && effective.token) {
-      return { key: 'Authorization', value: `Bearer ${resolveVars(effective.token, envVariables)}`, enabled: true }
+      return { key: 'Authorization', value: `Bearer ${resolveVars(effective.token, vars)}`, enabled: true }
     }
     return null
   }
 
-  function handleSend() {
+  async function handleSend() {
     if (!url.trim()) return
+
+    // Tracks env vars for the main request. May be updated after pre-request extractions
+    // so the auth header uses freshly-set values rather than stale React state.
+    let liveEnvVars = envVariables
+
+    // ── Pre-request ────────────────────────────────────────────────────────────
+    if (preRequestId) {
+      const preReq = allRequests.find((r) => r.id === preRequestId)
+      if (preReq) {
+        // Find the full saved request data from the query cache
+        const fullPreReq = collectionRequestQueries
+          .flatMap((q) => q.data?.data ?? [])
+          .find((r) => r.id === preRequestId)
+
+        if (fullPreReq) {
+          setExecuting(true)
+          setExecuteError(null)
+          setResponse(null)
+          try {
+            const bodyless = fullPreReq.method === 'GET' || fullPreReq.method === 'DELETE'
+            const res = await fetch('/api/v1/execute', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                requestId: fullPreReq.id,
+                environmentId: selectedEnv === 'none' ? undefined : selectedEnv,
+                method: fullPreReq.method,
+                url: fullPreReq.url,
+                queryParams: fullPreReq.queryParams.filter((p) => p.key.trim() !== ''),
+                headers: fullPreReq.headers.filter((h) => h.key.trim() !== ''),
+                body: bodyless ? undefined : (fullPreReq.body || undefined),
+                bodyType: bodyless ? 'NONE' : fullPreReq.bodyType,
+              }),
+            })
+            if (!res.ok) {
+              let message = `Pre-request server error ${res.status}`
+              try {
+                const errBody = await res.json()
+                if (errBody?.error?.message) message = `Pre-request failed: ${errBody.error.message}`
+              } catch { /* use default */ }
+              setExecuteError(message)
+              setExecuting(false)
+              return
+            }
+            const preResult: ExecuteResponse = await res.json()
+            queryClient.refetchQueries({ queryKey: ['history'] })
+            await applyExtractions(fullPreReq.responseExtractions ?? [], preResult)
+
+            // Re-fetch env vars so the main request uses the values the pre-request just set.
+            // React state (envVariables) won't have re-rendered yet, so we fetch directly.
+            if ((fullPreReq.responseExtractions ?? []).length > 0 && selectedEnv !== 'none') {
+              try {
+                const freshEnv = await api.getEnvironment(selectedEnv)
+                const freshVars = Object.fromEntries(
+                  (freshEnv.variables ?? [])
+                    .filter((v) => v.value !== null)
+                    .map((v) => [v.key, v.value as string])
+                )
+                liveEnvVars = freshVars
+              } catch { /* fall back to current envVariables */ }
+            }
+
+            const codes = preRequestSuccessCodes.length > 0 ? preRequestSuccessCodes : [200]
+            if (!codes.includes(preResult.response.status)) {
+              setExecuteError(
+                `Pre-request "${fullPreReq.name}" returned ${preResult.response.status} — expected ${codes.join(', ')}`
+              )
+              setExecuting(false)
+              return
+            }
+          } catch (err) {
+            setExecuteError(`Pre-request failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+            setExecuting(false)
+            return
+          }
+        }
+      }
+    }
+
+    // ── Main request ───────────────────────────────────────────────────────────
     const activeHeaders = headers.filter((h) => h.key.trim() !== '').map(({ key, value, enabled }) => ({ key, value, enabled }))
-    const authHeader = buildAuthHeader()
+    const authHeader = buildAuthHeader(liveEnvVars)
     // Auth header is injected unless the user has manually set Authorization in the headers tab
     const hasManualAuth = activeHeaders.some((h) => h.key.toLowerCase() === 'authorization')
     const mergedHeaders = authHeader && !hasManualAuth ? [authHeader, ...activeHeaders] : activeHeaders
@@ -652,6 +776,9 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
                 envVariables={envVariables}
                 hasActiveEnv={selectedEnv !== 'none'}
                 responseExtractions={responseExtractions}
+                preRequestId={preRequestId}
+                preRequestSuccessCodes={preRequestSuccessCodes}
+                availableRequests={allRequests}
                 onMethodChange={handleMethodChange}
                 onUrlChange={handleUrlChange}
                 onParamsChange={handleParamsChange}
@@ -660,11 +787,15 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
                 onBodyTypeChange={setBodyType}
                 onAuthChange={setAuth}
                 onExtractionsChange={setResponseExtractions}
+                onPreRequestChange={setPreRequestId}
+                onSuccessCodesChange={setPreRequestSuccessCodes}
                 onTabChange={setRequestTab}
                 onSend={handleSend}
                 onSaved={(saved) => {
                   setActiveRequest(saved)
                   setResponseExtractions(saved.responseExtractions ?? [])
+                  setPreRequestId(saved.preRequestId ?? null)
+                  setPreRequestSuccessCodes(saved.preRequestSuccessCodes ?? [200])
                   setSavedAuth(auth)
                   clearDraft(saved.id)
                   if (activeDraftId) {

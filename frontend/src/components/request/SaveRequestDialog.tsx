@@ -14,12 +14,14 @@ interface Props {
   bodyType: 'NONE' | 'JSON' | 'FORM' | 'TEXT'
   auth: AuthConfig
   responseExtractions: ResponseExtraction[]
+  preRequestId: string | null
+  preRequestSuccessCodes: number[]
   activeRequest: SavedRequest | null
   isDirty: boolean
   onSaved: (saved: SavedRequest) => void
 }
 
-export function SaveRequestDialog({ method, url, params, headers, body, bodyType, auth, responseExtractions, activeRequest, isDirty, onSaved }: Props) {
+export function SaveRequestDialog({ method, url, params, headers, body, bodyType, auth, responseExtractions, preRequestId, preRequestSuccessCodes, activeRequest, isDirty, onSaved }: Props) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [collectionId, setCollectionId] = useState('')
@@ -49,6 +51,8 @@ export function SaveRequestDialog({ method, url, params, headers, body, bodyType
               bodyType,
               auth: auth.type === 'none' && !auth.username && !auth.password ? null : auth,
               responseExtractions,
+              preRequestId,
+              preRequestSuccessCodes,
             },
             { onSuccess: (saved) => onSaved(saved) },
           )
@@ -59,7 +63,7 @@ export function SaveRequestDialog({ method, url, params, headers, body, bodyType
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [open, url, activeRequest, method, params, headers, body, bodyType, auth, collections])
+  }, [open, url, activeRequest, method, params, headers, body, bodyType, auth, collections, responseExtractions, preRequestId, preRequestSuccessCodes])
 
   const isPending = isSaving || isUpdating
   const isUpdate = activeRequest !== null
@@ -105,6 +109,8 @@ export function SaveRequestDialog({ method, url, params, headers, body, bodyType
       bodyType,
       auth: auth.type === 'none' && !auth.username && !auth.password ? null : auth,
       responseExtractions,
+      preRequestId,
+      preRequestSuccessCodes,
     }
 
     const onError = () => setSubmitError('Failed to save request. Please try again.')

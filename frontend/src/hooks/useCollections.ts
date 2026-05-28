@@ -74,7 +74,7 @@ export function useRequests(collectionId: string) {
 export function useUpdateRequest() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; collectionId: string; name: string; method: string; url: string; queryParams: Array<{ key: string; value: string; enabled: boolean }>; headers: Array<{ key: string; value: string; enabled: boolean }>; body?: string; bodyType: string; auth?: AuthConfig | null; responseExtractions?: ResponseExtraction[] }) =>
+    mutationFn: ({ id, ...body }: { id: string; collectionId: string; name: string; method: string; url: string; queryParams: Array<{ key: string; value: string; enabled: boolean }>; headers: Array<{ key: string; value: string; enabled: boolean }>; body?: string; bodyType: string; auth?: AuthConfig | null; responseExtractions?: ResponseExtraction[]; preRequestId?: string | null; preRequestSuccessCodes?: number[] }) =>
       api.updateRequest(id, body),
     onSuccess: () => queryClient.refetchQueries({ queryKey: ['requests'] }),
   })

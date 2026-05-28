@@ -62,6 +62,13 @@ public class SavedRequest {
     @Column(name = "response_extractions", columnDefinition = "jsonb", nullable = false)
     private List<ResponseExtraction> responseExtractions = new ArrayList<>();
 
+    @Column(name = "pre_request_id")
+    private UUID preRequestId;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "pre_request_success_codes", columnDefinition = "jsonb", nullable = false)
+    private List<Integer> preRequestSuccessCodes = new ArrayList<>(List.of(200));
+
     @Column(name = "sort_order", nullable = false)
     private int sortOrder = 0;
 

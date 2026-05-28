@@ -8,11 +8,12 @@ import { KeyValueEditor } from './KeyValueEditor'
 import { BodyEditor } from './BodyEditor'
 import { AuthPanel } from './AuthPanel'
 import { ExtractionPanel } from './ExtractionPanel'
+import { PreRequestPanel } from './PreRequestPanel'
 import { SaveRequestDialog } from './SaveRequestDialog'
 import { parseSegments, hasVariables, resolveVars } from '../../lib/variables'
 import type { HttpMethod, KeyValue, SavedRequest, AuthConfig, ResponseExtraction } from '../../types/api'
 
-type RequestTab = 'params' | 'headers' | 'body' | 'auth' | 'extract'
+type RequestTab = 'params' | 'headers' | 'body' | 'auth' | 'extract' | 'prereq'
 
 const ALL_TABS: Array<{ id: RequestTab; label: string; hideFor?: HttpMethod[] }> = [
   { id: 'params',  label: 'Params' },
@@ -20,6 +21,7 @@ const ALL_TABS: Array<{ id: RequestTab; label: string; hideFor?: HttpMethod[] }>
   { id: 'body',    label: 'Body', hideFor: ['GET', 'DELETE'] },
   { id: 'auth',    label: 'Auth' },
   { id: 'extract', label: 'Extract' },
+  { id: 'prereq',  label: 'Pre-req' },
 ]
 
 interface Props {
@@ -38,6 +40,9 @@ interface Props {
   envVariables: Record<string, string>
   hasActiveEnv: boolean
   responseExtractions: ResponseExtraction[]
+  preRequestId: string | null
+  preRequestSuccessCodes: number[]
+  availableRequests: Array<{ id: string; name: string; method: string; collectionName: string }>
   onMethodChange: (m: HttpMethod) => void
   onUrlChange: (url: string) => void
   onParamsChange: (rows: KeyValue[]) => void
@@ -46,6 +51,8 @@ interface Props {
   onBodyTypeChange: (type: 'NONE' | 'JSON' | 'FORM' | 'TEXT') => void
   onAuthChange: (auth: AuthConfig) => void
   onExtractionsChange: (extractions: ResponseExtraction[]) => void
+  onPreRequestChange: (id: string | null) => void
+  onSuccessCodesChange: (codes: number[]) => void
   onTabChange: (tab: RequestTab) => void
   onSend: () => void
   onSaved: (saved: SavedRequest) => void
@@ -54,21 +61,12 @@ interface Props {
 
 function isValidUrl(url: string, vars: Record<string, string> = {}): boolean {
   if (!url.trim() || url === 'https://' || url === 'http://') return false
-  // Resolve variables before validating — unknown vars get a safe placeholder
-  const resolved = resolveVars(url, vars).replace(/\{\{(\w+)}}/g, 'placeholder')
+  // Replace any {{variable}} patterns (including hyphenated names) with a valid placeholder
+  const resolved = resolveVars(url, vars).replace(/\{\{[^}]+\}\}/g, 'placeholder')
   try {
     const { protocol, hostname } = new URL(resolved)
     if (protocol !== 'http:' && protocol !== 'https:') return false
-    const host = hostname.replace(/\.+$/, '')
-    if (!host) return false
-    if (host === 'localhost') return true
-    // IPv4
-    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) return true
-    // IPv6 (browser wraps in brackets; URL hostname strips them)
-    if (host.includes(':')) return true
-    // Domain: two or more labels, each non-empty with only alphanumeric/hyphens
-    const labels = host.split('.')
-    return labels.length >= 2 && labels.every((l) => /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(l))
+    return hostname.length > 0
   } catch {
     return false
   }
@@ -76,9 +74,10 @@ function isValidUrl(url: string, vars: Record<string, string> = {}): boolean {
 
 export function RequestPanel({
   method, url, params, headers, body, bodyType, auth, collectionAuth, activeTab, activeRequest, isDirty,
-  envVariables, hasActiveEnv, responseExtractions,
+  envVariables, hasActiveEnv, responseExtractions, preRequestId, preRequestSuccessCodes, availableRequests,
   onMethodChange, onUrlChange, onParamsChange, onHeadersChange,
-  onBodyChange, onBodyTypeChange, onAuthChange, onExtractionsChange, onTabChange, onSend, onSaved,
+  onBodyChange, onBodyTypeChange, onAuthChange, onExtractionsChange, onPreRequestChange, onSuccessCodesChange,
+  onTabChange, onSend, onSaved,
 }: Props) {
   const tabs = ALL_TABS.filter((t) => !t.hideFor?.includes(method))
   const effectiveTab = tabs.some((t) => t.id === activeTab) ? activeTab : 'params'
@@ -259,6 +258,8 @@ export function RequestPanel({
           bodyType={bodyType}
           auth={auth}
           responseExtractions={responseExtractions}
+          preRequestId={preRequestId}
+          preRequestSuccessCodes={preRequestSuccessCodes}
           activeRequest={activeRequest}
           isDirty={isDirty}
           onSaved={onSaved}
@@ -312,6 +313,9 @@ export function RequestPanel({
                 <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-accent align-middle -mt-px" />
               )}
               {tab.id === 'extract' && responseExtractions.some((r) => r.path.trim() && r.variableKey.trim()) && (
+                <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-accent align-middle -mt-px" />
+              )}
+              {tab.id === 'prereq' && preRequestId && (
                 <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-accent align-middle -mt-px" />
               )}
             </Tabs.Trigger>
@@ -371,6 +375,17 @@ export function RequestPanel({
             extractions={responseExtractions}
             onChange={onExtractionsChange}
             hasActiveEnv={hasActiveEnv}
+          />
+        </Tabs.Content>
+
+        <Tabs.Content value="prereq" className="flex-1 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col">
+          <PreRequestPanel
+            preRequestId={preRequestId}
+            successCodes={preRequestSuccessCodes}
+            availableRequests={availableRequests}
+            currentRequestId={activeRequest?.id}
+            onPreRequestChange={onPreRequestChange}
+            onSuccessCodesChange={onSuccessCodesChange}
           />
         </Tabs.Content>
       </Tabs.Root>

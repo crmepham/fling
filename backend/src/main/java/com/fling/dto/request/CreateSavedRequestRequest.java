@@ -21,5 +21,7 @@ public record CreateSavedRequestRequest(
         String body,
         @NotNull BodyType bodyType,
         AuthConfig auth,
-        List<ResponseExtraction> responseExtractions
+        List<ResponseExtraction> responseExtractions,
+        UUID preRequestId,
+        List<Integer> preRequestSuccessCodes
 ) {}
